@@ -1,1 +1,1 @@
-# media-db
+Media DB (Supabase + Flask + React) — bootstrap scaffold

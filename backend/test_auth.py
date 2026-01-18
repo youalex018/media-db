@@ -83,8 +83,8 @@ def test_auth_endpoint_errors() -> Dict[str, Any]:
         },
         {
             "name": "Valid format token with missing kid",
-            "headers": {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"},
-            "expected_error": "missing_key_id"  # This token has no kid in header
+            "headers": {"Authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.fake-signature"},
+            "expected_error": "missing_key_id"  # RS256 token with no kid in header
         },
         {
             "name": "Token with fake kid",

@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 try:
     load_dotenv()
 except Exception as e:
-    print(f"⚠️  Warning: Could not load .env file: {e}")
+    print(f"[WARN] Could not load .env file: {e}")
     print("Using environment variables only")
 
 class Config:
@@ -15,17 +15,19 @@ class Config:
     # Required environment variables
     SUPABASE_URL = os.getenv('SUPABASE_URL')
     SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+    SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY')
+    SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
     
     # Optional environment variables with defaults
     FLASK_ENV = os.getenv('FLASK_ENV', 'production')
-    ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'http://localhost:5173').split(',')
+    ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
     TMDB_API_KEY = os.getenv('TMDB_API_KEY')
     
     # Validation
     @classmethod
     def validate_config(cls):
         """Validate that required configuration is present."""
-        required_vars = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']
+        required_vars = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY']
         missing_vars = []
         
         for var in required_vars:
@@ -33,14 +35,14 @@ class Config:
                 missing_vars.append(var)
         
         if missing_vars:
-            print("❌ Configuration Error: Missing required environment variables:")
+            print("[ERROR] Configuration Error: Missing required environment variables:")
             for var in missing_vars:
                 print(f"   - {var}")
             print("\nPlease set these variables in your .env file.")
             print("See .env.example for the required format.")
             sys.exit(1)
         
-        print("✅ Configuration validated successfully")
+        print("[SUCCESS] Configuration validated successfully")
 
 class DevelopmentConfig(Config):
     """Development configuration."""

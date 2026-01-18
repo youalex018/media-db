@@ -1,7 +1,15 @@
--- Enable required extensions
+-- Create extensions schema for security (isolate extensions from public schema)
+CREATE SCHEMA IF NOT EXISTS extensions;
+
+-- Enable required extensions in dedicated schema
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pg_trgm";
-CREATE EXTENSION IF NOT EXISTS "vector";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm" SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS "vector" SCHEMA extensions;
+
+-- Grant usage on extensions schema so extension types are accessible
+GRANT USAGE ON SCHEMA extensions TO authenticated;
+GRANT USAGE ON SCHEMA extensions TO anon;
+GRANT USAGE ON SCHEMA extensions TO service_role;
 
 -- Create custom types
 CREATE TYPE work_type AS ENUM ('movie', 'show', 'book');
@@ -114,13 +122,18 @@ CREATE INDEX idx_people_name_trgm ON people USING GIN (lower(name) gin_trgm_ops)
 CREATE INDEX idx_sources_provider_external ON sources (provider, external_id);
 
 -- Create timestamp update trigger function
+-- Note: SET search_path for security (prevents search_path manipulation attacks)
 CREATE OR REPLACE FUNCTION touch_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
     NEW.updated_at = now();
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- Add update triggers
 CREATE TRIGGER trigger_works_updated_at
@@ -147,28 +160,30 @@ ALTER TABLE sources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE work_embeddings ENABLE ROW LEVEL SECURITY;
 
 -- Profiles policies (users can only access their own profile)
+-- Note: Using (select auth.uid()) instead of auth.uid() for performance
+-- This prevents re-evaluation per row and significantly improves query performance at scale
 CREATE POLICY "Users can view own profile" ON profiles
-    FOR SELECT USING (auth.uid() = id);
+    FOR SELECT USING ((select auth.uid()) = id);
 
 CREATE POLICY "Users can update own profile" ON profiles
-    FOR UPDATE USING (auth.uid() = id);
+    FOR UPDATE USING ((select auth.uid()) = id);
 
 CREATE POLICY "Users can insert own profile" ON profiles
-    FOR INSERT WITH CHECK (auth.uid() = id);
+    FOR INSERT WITH CHECK ((select auth.uid()) = id);
 
 -- User-scoped table policies (user_items, user_tag_names, user_item_tags)
 CREATE POLICY "Users can manage own items" ON user_items
-    FOR ALL USING (auth.uid() = user_id);
+    FOR ALL USING ((select auth.uid()) = user_id);
 
 CREATE POLICY "Users can manage own tag names" ON user_tag_names
-    FOR ALL USING (auth.uid() = user_id);
+    FOR ALL USING ((select auth.uid()) = user_id);
 
 CREATE POLICY "Users can manage own item tags" ON user_item_tags
     FOR ALL USING (
         EXISTS (
             SELECT 1 FROM user_items ui 
             WHERE ui.id = user_item_tags.user_item_id 
-            AND ui.user_id = auth.uid()
+            AND ui.user_id = (select auth.uid())
         )
     );
 

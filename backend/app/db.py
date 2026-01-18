@@ -19,7 +19,7 @@ def execute_rpc(function_name: str, params: dict = None):
         result = supabase.rpc(function_name, params or {}).execute()
         return result.data
     except Exception as e:
-        print(f"❌ RPC execution error: {e}")
+        print(f"[ERROR] RPC execution error: {e}")
         raise
 
 def safe_insert(table: str, data: dict):
@@ -28,7 +28,7 @@ def safe_insert(table: str, data: dict):
         result = supabase.table(table).insert(data).execute()
         return result.data
     except Exception as e:
-        print(f"❌ Insert error for table {table}: {e}")
+        print(f"[ERROR] Insert error for table {table}: {e}")
         raise
 
 def safe_upsert(table: str, data: dict, on_conflict: str = None):
@@ -40,7 +40,7 @@ def safe_upsert(table: str, data: dict, on_conflict: str = None):
         result = query.execute()
         return result.data
     except Exception as e:
-        print(f"❌ Upsert error for table {table}: {e}")
+        print(f"[ERROR] Upsert error for table {table}: {e}")
         raise
 
 def safe_select(table: str, columns: str = "*", filters: dict = None):
@@ -53,5 +53,5 @@ def safe_select(table: str, columns: str = "*", filters: dict = None):
         result = query.execute()
         return result.data
     except Exception as e:
-        print(f"❌ Select error for table {table}: {e}")
+        print(f"[ERROR] Select error for table {table}: {e}")
         raise

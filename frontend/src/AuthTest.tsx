@@ -5,11 +5,10 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
-}
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Create supabase client only if env vars are available
+const supabase = supabaseUrl && supabaseAnonKey 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null
 
 interface User {
   id: string
@@ -22,6 +21,21 @@ export default function AuthTest() {
   const [email, setEmail] = useState('')
   const [backendResponse, setBackendResponse] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Early return if env vars are missing
+  if (!supabase) {
+    return (
+      <div style={{ padding: '20px', backgroundColor: '#ffebee', border: '1px solid #f44336' }}>
+        <h2>Configuration Error</h2>
+        <p>Missing Supabase environment variables. Please check your <code>.env.local</code> file.</p>
+        <p>Required variables:</p>
+        <ul>
+          <li>VITE_SUPABASE_URL: {supabaseUrl ? '✅ SET' : '❌ NOT SET'}</li>
+          <li>VITE_SUPABASE_ANON_KEY: {supabaseAnonKey ? '✅ SET' : '❌ NOT SET'}</li>
+        </ul>
+      </div>
+    )
+  }
 
   useEffect(() => {
     // Get initial session
@@ -100,7 +114,7 @@ export default function AuthTest() {
 
   return (
     <div style={{ padding: '20px', maxWidth: '500px', margin: '0 auto' }}>
-      <h1>🔐 Auth Test</h1>
+      <h1>Auth Test</h1>
       
       {!user ? (
         <form onSubmit={handleSignIn}>
@@ -121,7 +135,7 @@ export default function AuthTest() {
         </form>
       ) : (
         <div>
-          <h2>✅ Signed In</h2>
+          <h2>Signed In</h2>
           <p><strong>User ID:</strong> {user.id}</p>
           <p><strong>Email:</strong> {user.email}</p>
           
@@ -149,7 +163,7 @@ export default function AuthTest() {
               borderRadius: '4px',
               marginTop: '10px'
             }}>
-              <h3>🎉 Backend Response:</h3>
+              <h3>Backend Response:</h3>
               <pre>{JSON.stringify(backendResponse, null, 2)}</pre>
             </div>
           )}

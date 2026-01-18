@@ -1,58 +1,63 @@
-from flask import Blueprint, jsonify, g, request
-from .auth import require_user
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from .auth import get_current_user
 
-# Create blueprint
-bp = Blueprint('api', __name__, url_prefix='/api')
+router = APIRouter()
 
-@bp.route('/health')
-def health():
+
+@router.get('/health')
+async def health():
     """Health check endpoint."""
-    return jsonify({'status': 'ok'})
+    return {'status': 'ok'}
 
-@bp.route('/me')
-@require_user
-def me():
+
+@router.get('/me')
+async def me(user=Depends(get_current_user)):
     """Get current user information (protected endpoint)."""
-    return jsonify({
-        'user_id': g.user_id,
-        'email': g.user_email
-    })
+    return {
+        'user_id': user['user_id'],
+        'email': user.get('email')
+    }
+
 
 # Placeholder endpoints for future implementation
-@bp.route('/search')
-@require_user
-def search():
+@router.get('/search')
+async def search(request: Request, user=Depends(get_current_user)):
     """Search external sources (placeholder)."""
-    query = request.args.get('q', '')
+    query = request.query_params.get('q', '')
     if not query:
-        return jsonify({'error': 'Query parameter "q" is required'}), 400
-    
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={'error': 'Query parameter "q" is required'}
+        )
     # TODO: Implement TMDb and Open Library search
-    return jsonify({
+    return {
         'message': 'Search endpoint not yet implemented',
         'query': query
-    }), 501
+    }
 
-@bp.route('/library/add', methods=['POST'])
-@require_user
-def add_to_library():
+
+@router.post('/library/add')
+async def add_to_library(request: Request, user=Depends(get_current_user)):
     """Add item to user's library (placeholder)."""
-    data = request.get_json()
+    data = await request.json()
     if not data:
-        return jsonify({'error': 'JSON body required'}), 400
-    
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={'error': 'JSON body required'}
+        )
+
     # TODO: Implement work upsert and user_item creation
-    return jsonify({
+    return {
         'message': 'Add to library endpoint not yet implemented',
         'received_data': data
-    }), 501
+    }
 
-@bp.route('/library')
-@require_user 
-def get_library():
+
+@router.get('/library')
+async def get_library(user=Depends(get_current_user)):
     """Get user's library (placeholder)."""
     # TODO: Implement user library retrieval
-    return jsonify({
+    return {
         'message': 'Library endpoint not yet implemented',
-        'user_id': g.user_id
-    }), 501
+        'user_id': user['user_id']
+    }

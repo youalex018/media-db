@@ -5,28 +5,36 @@ This script will:
 1. Create test works (movies/books)
 2. Create test user items for different users
 3. Verify users can only see their own items
+
+NOTE: This script requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY 
+environment variables to be set before running.
 """
 
 import os
 import sys
 from supabase import create_client
 
-# Set environment variables for testing
-os.environ['SUPABASE_URL'] = 'https://jxhtujifrkqzoxbfxcur.supabase.co'
-os.environ['SUPABASE_SERVICE_ROLE_KEY'] = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4aHR1amlmcmtxem94YmZ4Y3VyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTIyNTAxNywiZXhwIjoyMDcwODAxMDE3fQ.QDC-OLvRTXdwlD9RasczyNPLTj7ZCKa9AB1yhsZJFtE'
-
+# Import from app to get environment variables from .env file
 from app.db import get_supabase_client
+from app.config import get_config
 
 def test_rls():
-    print("🧪 Testing Row Level Security (RLS)")
+    print("Testing Row Level Security (RLS)")
     print("=" * 50)
+    
+    # Load configuration from .env
+    config = get_config()
+    if not config.SUPABASE_URL or not config.SUPABASE_SERVICE_ROLE_KEY:
+        print("[FAIL] Missing required environment variables")
+        print("Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in backend/.env")
+        return False
     
     # Get Supabase client (service role - can bypass RLS)
     supabase = get_supabase_client()
     
     try:
         # 1. Create test works (using service role)
-        print("\n📚 Creating test works...")
+        print("\n[TEST] Creating test works...")
         
         # Create a test movie
         movie_data = {
@@ -39,7 +47,7 @@ def test_rls():
         
         movie_result = supabase.table('works').upsert(movie_data, on_conflict='tmdb_id').execute()
         movie_id = movie_result.data[0]['id']
-        print(f"✅ Created movie: {movie_data['title']} (ID: {movie_id})")
+        print(f"[PASS] Created movie: {movie_data['title']} (ID: {movie_id})")
         
         # Create a test book
         book_data = {
@@ -52,10 +60,10 @@ def test_rls():
         
         book_result = supabase.table('works').insert(book_data).execute()
         book_id = book_result.data[0]['id']
-        print(f"✅ Created book: {book_data['title']} (ID: {book_id})")
+        print(f"[PASS] Created book: {book_data['title']} (ID: {book_id})")
         
         # 2. Create test user profiles (simulating two different users)
-        print("\n👥 Creating test users...")
+        print("\n[TEST] Creating test users...")
         
         user1_id = '11111111-1111-1111-1111-111111111111'
         user2_id = '22222222-2222-2222-2222-222222222222'
@@ -67,12 +75,12 @@ def test_rls():
                 {'id': user1_id, 'username': 'test_user_1'},
                 {'id': user2_id, 'username': 'test_user_2'}
             ], on_conflict='id').execute()
-            print(f"✅ Created test users: {user1_id}, {user2_id}")
+            print(f"[PASS] Created test users: {user1_id}, {user2_id}")
         except Exception as e:
-            print(f"⚠️  Users might already exist: {e}")
+            print(f"[WARN] Users might already exist: {e}")
         
         # 3. Create user items for each user
-        print("\n📱 Creating user items...")
+        print("\n[TEST] Creating user items...")
         
         user_items = [
             {
@@ -98,50 +106,50 @@ def test_rls():
         
         for item in user_items:
             result = supabase.table('user_items').upsert(item, on_conflict='user_id,work_id').execute()
-            print(f"✅ Created item for user {item['user_id']}: {item['status']} - work {item['work_id']}")
+            print(f"[PASS] Created item for user {item['user_id']}: {item['status']} - work {item['work_id']}")
         
         # 4. Test RLS by simulating user-scoped queries
-        print("\n🔒 Testing RLS isolation...")
+        print("\n[TEST] Testing RLS isolation...")
         
         # Test: All users should be able to read works (public read)
         works = supabase.table('works').select('*').execute()
-        print(f"✅ Public works query returned {len(works.data)} works")
+        print(f"[PASS] Public works query returned {len(works.data)} works")
         
         # Test: Service role can see all user_items (bypasses RLS)
         all_items = supabase.table('user_items').select('*').execute()
-        print(f"✅ Service role can see all {len(all_items.data)} user items")
+        print(f"[PASS] Service role can see all {len(all_items.data)} user items")
         
         # 5. Simulate user-scoped client (with RLS enforced)
-        print("\n👤 Testing user-scoped access...")
+        print("\n[TEST] Testing user-scoped access...")
         
         # Create user-scoped client (anon key with RLS enforced)
         user_supabase = create_client(
-            os.environ['SUPABASE_URL'],
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4aHR1amlmcmtxem94YmZ4Y3VyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyMjUwMTcsImV4cCI6MjA3MDgwMTAxN30.YfG1TBwHPavhSFcpvuODvP1r5oON-fLgFn1DTfw3hrw'
+            config.SUPABASE_URL,
+            config.SUPABASE_ANON_KEY
         )
         
         # Without authentication, should see no user items
         try:
             anon_items = user_supabase.table('user_items').select('*').execute()
-            print(f"📊 Anonymous user sees {len(anon_items.data)} user items (should be 0)")
+            print(f"[INFO] Anonymous user sees {len(anon_items.data)} user items (should be 0)")
         except Exception as e:
-            print(f"✅ Anonymous access blocked: {e}")
+            print(f"[PASS] Anonymous access blocked: {e}")
         
         # But should still see public works
         try:
             anon_works = user_supabase.table('works').select('*').execute()
-            print(f"✅ Anonymous user can see {len(anon_works.data)} works (public read)")
+            print(f"[PASS] Anonymous user can see {len(anon_works.data)} works (public read)")
         except Exception as e:
-            print(f"❌ Anonymous works access failed: {e}")
+            print(f"[FAIL] Anonymous works access failed: {e}")
         
-        print("\n🎉 RLS verification completed!")
-        print("✅ Works are publicly readable")
-        print("✅ User items are properly isolated")
-        print("✅ Service role can access all data")
-        print("✅ Anonymous users cannot access user data")
+        print("\n[SUCCESS] RLS verification completed!")
+        print("[PASS] Works are publicly readable")
+        print("[PASS] User items are properly isolated")
+        print("[PASS] Service role can access all data")
+        print("[PASS] Anonymous users cannot access user data")
         
     except Exception as e:
-        print(f"❌ RLS test failed: {e}")
+        print(f"[FAIL] RLS test failed: {e}")
         return False
     
     return True

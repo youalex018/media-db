@@ -36,10 +36,10 @@ Tables containing shared reference data:
 
 ## 🔑 Authentication & Authorization
 
-### Supabase JWT Tokens
+### Supabase Tokens
 - **Frontend**: Uses `SUPABASE_ANON_KEY` for authentication
-- **Backend**: Verifies JWT tokens using Supabase JWKS
-- **Token Validation**: RSA signature verification with key rotation support
+- **Backend**: Verifies auth tokens using the Supabase key set
+- **Token Validation**: Signature verification with key rotation support
 
 ### Service Role Usage
 - **Purpose**: Backend service for privileged operations
@@ -111,7 +111,7 @@ python test_rls.py
 
 ### Code Security
 - [ ] No secrets in source code
-- [ ] JWT tokens are validated on every request
+- [ ] Auth tokens are validated on every request
 - [ ] RLS policies are tested and verified
 - [ ] Input validation on all API endpoints
 - [ ] Error messages don't leak sensitive info
@@ -126,7 +126,7 @@ python test_rls.py
 ## 🔍 Monitoring & Alerts
 
 ### Security Events to Monitor
-- Failed JWT verification attempts
+- Failed token verification attempts
 - RLS policy violations
 - Unusual API access patterns
 - Large data exports

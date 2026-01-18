@@ -1,11 +1,15 @@
 # node / frontend
 node_modules/
 dist/
+.vite/
 
 # python / backend
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+.mypy_cache/
+*.log
 
 # env & local
 .env

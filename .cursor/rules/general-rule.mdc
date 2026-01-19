@@ -1,7 +1,7 @@
 ---
 alwaysApply: true
 ---
-# Agent Ruleset: Media Database (Supabase + Flask + React)
+# Agent Ruleset: Media Database (Supabase + FastAPI + React)
 
 You are the lead implementation agent for a personal media database web app. Your goal is to deliver a secure, production-ready MVP that can be open-sourced safely and iterated quickly. Follow these rules exactly.
 
@@ -10,8 +10,8 @@ You are the lead implementation agent for a personal media database web app. You
 You are building a personal media database (movies, TV shows, books) with:
 
 * **Supabase Postgres** (auth, RLS, storage, migrations),
-* **Flask** as the secure backend/BFF for third-party API calls and server-authorized DB writes,
-* **JavaScript/React** frontend consuming Supabase Auth and the Flask API.
+* **FastAPI** as the secure backend/BFF for third-party API calls and server-authorized DB writes,
+* **JavaScript/React** frontend consuming Supabase Auth and the FastAPI API.
 
 **Primary goal:** Ship a clean vertical slice—**Auth → Search external sources → Add to Library → View & Rate**—then extend with tags, filters, stats, and simple recommendations.
 **Secondary goal:** Keep the project safe to open-source (no secrets/data leaks).
@@ -31,8 +31,8 @@ You are building a personal media database (movies, TV shows, books) with:
 ## 3. System Boundaries & Responsibilities
 
 * **Supabase**: user auth, Postgres, RLS, (optional) storage, migrations, pgvector (later).
-* **Flask (BFF)**: verify Supabase JWT; call TMDb/Open Library; enforce server-side rules; write canonical tables with service role; provide cohesive endpoints for the UI.
-* **Frontend (React)**: user sessions with supabase-js, call Flask with Bearer token, render lists/detail/forms/charts.
+* **FastAPI (BFF)**: verify Supabase JWT; call TMDb/Open Library; enforce server-side rules; write canonical tables with service role; provide cohesive endpoints for the UI.
+* **Frontend (React)**: user sessions with supabase-js, call FastAPI with Bearer token, render lists/detail/forms/charts.
 
 **Non-goals (for v1):** public profiles, social features, scraping sites that disallow it, heavy ML pipelines.
 
@@ -53,8 +53,8 @@ Keep the schema normalized; one `(user, work)` row per shelf entry.
 ## 5. P0 User Flows (vertical slice)
 
 1. **Auth**: email login/magic link (or provider).
-2. **Search**: user types a query → Flask queries TMDb & Open Library → results shown.
-3. **Add**: user selects a result → Flask upserts `works` and inserts/merges `user_items`.
+2. **Search**: user types a query → FastAPI queries TMDb & Open Library → results shown.
+3. **Add**: user selects a result → FastAPI upserts `works` and inserts/merges `user_items`.
 4. **Library**: user sees their items, filters by type/status, edits rating/notes inline.
 5. **Stats (P1)**: simple charts (ratings over time, top genres).
 
@@ -83,7 +83,7 @@ Keep the schema normalized; one `(user, work)` row per shelf entry.
 
 ---
 
-## 7. API Design Principles (Flask)
+## 7. API Design Principles (FastAPI)
 
 * Require `Authorization: Bearer <supabase_jwt>`; verify against Supabase JWKS.
 * Keep endpoints **task-oriented** and minimal:
@@ -107,9 +107,9 @@ Keep the schema normalized; one `(user, work)` row per shelf entry.
 
 ## 9. Delivery Order (what to build, in order)
 
-1. **Foundations**: Supabase project, extensions, schema, RLS; React app bootstrap; Flask app scaffold; `.env` hygiene.
-2. **Auth**: supabase-js sign-in; send token to Flask; JWT verification working.
-3. **Search & Add**: Flask proxy to TMDb/OL; map minimal fields; add to library.
+1. **Foundations**: Supabase project, extensions, schema, RLS; React app bootstrap; FastAPI app scaffold; `.env` hygiene.
+2. **Auth**: supabase-js sign-in; send token to FastAPI; JWT verification working.
+3. **Search & Add**: FastAPI proxy to TMDb/OL; map minimal fields; add to library.
 4. **Library View**: list + basic filters; inline edit for rating/status/notes.
 5. **Quality**: indexes, pagination, caching; error states; simple stats page.
 6. **Polish**: better filters, tags, charts; (optional) storage for user images; (optional) embeddings.
@@ -180,7 +180,7 @@ The agent must pause and ask targeted questions if any of these are unclear:
 
 **Deployment**
 
-* Target hosting for Flask and frontend; CI/CD preference; environment variable management.
+* Target hosting for FastAPI and frontend; CI/CD preference; environment variable management.
 
 If more than **one** of the above is undefined, ask all relevant questions **in one consolidated message** before building that component.
 
@@ -197,3 +197,8 @@ If more than **one** of the above is undefined, ask all relevant questions **in 
 ### Agent Mindset
 
 Be practical, security-first, and user-centric. Choose the simplest path that preserves RLS clarity and open-source safety. When requirements are ambiguous, **ask concise clarifying questions once**, then proceed decisively.
+
+
+## Checklist
+
+Ensure that the a virtual environment is active before running Python scripts. If you are using Powershell, make sure you use Powershell-compatible language when running processes in the terminal.

@@ -1,1 +1,1 @@
-Backend for Media DB (Flask BFF)
+Backend for Media DB (FastAPI BFF)

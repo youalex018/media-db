@@ -106,19 +106,19 @@ CREATE TABLE sources (
 
 CREATE TABLE work_embeddings (
     work_id bigint PRIMARY KEY REFERENCES works(id) ON DELETE CASCADE,
-    embedding vector(768),
+    embedding extensions.vector(768),
     updated_at timestamptz DEFAULT now()
 );
 
 -- Create indexes for performance
-CREATE INDEX idx_works_title_trgm ON works USING GIN (lower(title) gin_trgm_ops);
+CREATE INDEX idx_works_title_trgm ON works USING GIN (lower(title) extensions.gin_trgm_ops);
 CREATE INDEX idx_works_type_year ON works (type, year);
 CREATE INDEX idx_works_tmdb_id ON works (tmdb_id) WHERE tmdb_id IS NOT NULL;
 CREATE INDEX idx_works_openlibrary_id ON works (openlibrary_id) WHERE openlibrary_id IS NOT NULL;
 CREATE INDEX idx_user_items_user_created ON user_items (user_id, created_at DESC);
 CREATE INDEX idx_user_items_user_status ON user_items (user_id, status);
 CREATE INDEX idx_user_items_user_rating ON user_items (user_id, rating DESC) WHERE rating IS NOT NULL;
-CREATE INDEX idx_people_name_trgm ON people USING GIN (lower(name) gin_trgm_ops);
+CREATE INDEX idx_people_name_trgm ON people USING GIN (lower(name) extensions.gin_trgm_ops);
 CREATE INDEX idx_sources_provider_external ON sources (provider, external_id);
 
 -- Create timestamp update trigger function

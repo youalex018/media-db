@@ -1,6 +1,6 @@
 # 📚 Media DB
 
-A personal media database for tracking movies, TV shows, and books. Built with **Supabase** (auth + database), **FastAPI** (secure backend), and **React + TypeScript** (frontend).
+A personal media database for tracking movies, TV shows, books, and more. Built with **Supabase** (auth + database), **FastAPI** (secure backend), and **React + TypeScript** (frontend).
 
 ## ✨ Features
 

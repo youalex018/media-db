@@ -1,3 +1,4 @@
+import json
 import jwt
 import requests
 import time
@@ -125,10 +126,14 @@ def verify_jwt_token(token):
                 try:
                     kty = jwk.get('kty', '')
                     if kty == 'RSA':
-                        key = jwt.algorithms.RSAAlgorithm.from_jwk(jwk)
+                        key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(jwk))
                         key_algorithm = 'RS256'
                     elif kty == 'EC':
-                        key = jwt.algorithms.ECAlgorithm.from_jwk(jwk)
+                        algorithm = jwt.algorithms.get_default_algorithms().get('ES256')
+                        if algorithm is None:
+                            logger.error("ES256 algorithm unavailable - install cryptography")
+                            continue
+                        key = algorithm.from_jwk(json.dumps(jwk))
                         key_algorithm = 'ES256'
                     else:
                         logger.error(f"Unsupported key type: {kty}")
@@ -152,10 +157,14 @@ def verify_jwt_token(token):
                         try:
                             kty = jwk.get('kty', '')
                             if kty == 'RSA':
-                                key = jwt.algorithms.RSAAlgorithm.from_jwk(jwk)
+                                key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(jwk))
                                 key_algorithm = 'RS256'
                             elif kty == 'EC':
-                                key = jwt.algorithms.ECAlgorithm.from_jwk(jwk)
+                                algorithm = jwt.algorithms.get_default_algorithms().get('ES256')
+                                if algorithm is None:
+                                    logger.error("ES256 algorithm unavailable - install cryptography")
+                                    continue
+                                key = algorithm.from_jwk(json.dumps(jwk))
                                 key_algorithm = 'ES256'
                             else:
                                 logger.error(f"Unsupported key type: {kty}")

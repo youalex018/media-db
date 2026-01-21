@@ -18,6 +18,8 @@ GRANT USAGE ON SCHEMA extensions TO service_role;
 COMMENT ON SCHEMA extensions IS 'Dedicated schema for PostgreSQL extensions (pgvector, pg_trgm, etc.) - isolated from public schema for security best practices';
 
 -- Fix: Function with role mutable search_path (create_profile_for_new_user)
+-- Drop trigger first to avoid dependency errors
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 -- Drop and recreate with SET search_path
 DROP FUNCTION IF EXISTS public.create_profile_for_new_user();
 
@@ -69,16 +71,12 @@ COMMENT ON FUNCTION public.create_profile_for_new_user() IS
     'Automatically creates a profile entry when a new user signs up. Handles errors gracefully to prevent blocking user creation.';
 
 -- Recreate the trigger (just to ensure it's properly linked)
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW
     EXECUTE FUNCTION create_profile_for_new_user();
 
 -- Fix: Function with role mutable search_path (touch_updated_at)
--- Drop and recreate with SET search_path
-DROP FUNCTION IF EXISTS public.touch_updated_at();
-
 CREATE OR REPLACE FUNCTION public.touch_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql

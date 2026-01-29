@@ -208,7 +208,7 @@ See [`SECURITY.md`](SECURITY.md) for detailed security architecture.
 
 ## 🧪 Testing
 
-### Quick Test
+### Quick Tests
 ```bash
 # Backend tests (with test environment)
 cd backend
@@ -255,61 +255,6 @@ See [`docs/TESTING.md`](docs/TESTING.md) for comprehensive testing guide.
 - **RLS errors?** Verify policies exist and are enabled
 
 See [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) for detailed solutions.
-
-## 🗂️ Project Structure
-
-```
-media-db/
-├── backend/              # FastAPI API server
-│   ├── app/             # Application modules
-│   │   ├── __init__.py  # App factory
-│   │   ├── auth.py      # Token verification
-│   │   ├── config.py    # Configuration
-│   │   ├── db.py        # Database utilities
-│   │   └── routes.py    # API endpoints
-│   ├── test_auth.py     # Auth tests
-│   ├── test_rls.py      # RLS tests
-│   ├── run_tests.py     # Test runner
-│   └── wsgi.py          # Server entry point
-├── frontend/            # React + Vite app
-│   ├── src/
-│   │   ├── App.tsx      # Main app component
-│   │   └── AuthTest.tsx # Auth test UI
-│   └── vite.config.ts   # Vite configuration
-├── supabase/            # Database
-│   └── migrations/      # SQL migrations
-├── docs/                # Documentation
-│   ├── TESTING.md
-│   ├── TROUBLESHOOTING.md
-│   ├── DATABASE_SETUP.md
-│   └── AUTH_TESTS.md
-└── README.md            # This file
-```
-
-## 🚧 Roadmap
-
-### Phase 1: Foundation ✅
-- [x] Authentication with Supabase
-- [x] Token verification with key set
-- [x] Database schema with RLS
-- [x] Basic API endpoints
-
-### Phase 2: Search & Add (In Progress)
-- [ ] TMDb API integration
-- [ ] Open Library API integration
-- [ ] Search results aggregation
-- [ ] Add to library endpoint
-
-### Phase 3: Library Management
-- [ ] View user library with filters
-- [ ] Update ratings and notes
-- [ ] Status tracking (wishlist, in progress, finished)
-- [ ] Custom tags
-
-### Phase 4: Discovery
-- [ ] Statistics and charts
-- [ ] Basic recommendations
-- [ ] Genre/people exploration
 
 ## 🤝 Contributing
 

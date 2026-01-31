@@ -1,3 +1,9 @@
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from .auth import get_current_user
@@ -18,6 +24,8 @@ from .mappers import (
 )
 
 router = APIRouter()
+RATINGS_STATS_TIMEOUT_SECONDS = 2
+RATINGS_STATS_MAX_ITEMS = 1000
 
 
 @router.get('/health')
@@ -194,6 +202,104 @@ async def add_to_library(request: Request, user=Depends(get_current_user)):
         'work': work,
         'user_item': user_item
     }
+
+
+def _ratings_stats_binary_path() -> Path:
+    env_path = os.getenv("RATINGS_STATS_BIN")
+    if env_path:
+        return Path(env_path)
+    repo_root = Path(__file__).resolve().parents[2]
+    binary_name = "ratings_stats.exe" if os.name == "nt" else "ratings_stats"
+    return repo_root / "tools" / "cpp" / "build" / binary_name
+
+
+def _ratings_stats_command(binary_path: Path) -> list[str]:
+    if binary_path.suffix.lower() == ".py":
+        return [sys.executable, str(binary_path)]
+    return [str(binary_path)]
+
+
+def _validate_ratings_payload(data: object) -> list[dict[str, object]]:
+    if not isinstance(data, list):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={'error': 'ratings_payload_must_be_list'},
+        )
+    if len(data) > RATINGS_STATS_MAX_ITEMS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={'error': 'ratings_payload_too_large'},
+        )
+    allowed_types = {"movie", "show", "book"}
+    normalized: list[dict[str, object]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={'error': 'ratings_item_invalid'},
+            )
+        item_type = item.get("type")
+        rating = item.get("rating")
+        if item_type not in allowed_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={'error': 'ratings_item_type_invalid'},
+            )
+        if not isinstance(rating, (int, float)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={'error': 'ratings_item_rating_invalid'},
+            )
+        if rating < 0 or rating > 100:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={'error': 'ratings_item_rating_out_of_range'},
+            )
+        normalized.append({"type": item_type, "rating": rating})
+    return normalized
+
+
+@router.post('/ratings/stats')
+async def ratings_stats(request: Request, user=Depends(get_current_user)):
+    """Compute rating stats using the C++ CLI tool."""
+    data = await request.json()
+    ratings = _validate_ratings_payload(data)
+    binary_path = _ratings_stats_binary_path()
+    if not binary_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={'error': 'ratings_stats_unavailable'},
+        )
+    try:
+        result = subprocess.run(
+            _ratings_stats_command(binary_path),
+            input=json.dumps(ratings),
+            capture_output=True,
+            text=True,
+            timeout=RATINGS_STATS_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail={'error': 'ratings_stats_timeout'},
+        )
+    if result.returncode != 0:
+        details = result.stderr.strip()
+        if details:
+            details = details[:200]
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={'error': 'ratings_stats_failed', 'details': details or None},
+        )
+    try:
+        stats = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={'error': 'ratings_stats_invalid_output'},
+        )
+    return {'stats': stats}
 
 
 @router.get('/library')

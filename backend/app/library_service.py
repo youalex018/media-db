@@ -1,29 +1,69 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from .db import get_supabase_client
+
+
+TMDB_CACHE_TTL = timedelta(days=183)
+
+
+def _parse_fetched_at(value: Any) -> Optional[datetime]:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        normalized = value.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+    return None
+
+
+def is_tmdb_cache_fresh(
+    fetched_at: Any, now: Optional[datetime] = None
+) -> bool:
+    if now is None:
+        now = datetime.now(timezone.utc)
+    fetched_dt = _parse_fetched_at(fetched_at)
+    if not fetched_dt:
+        return False
+    if fetched_dt.tzinfo is None:
+        fetched_dt = fetched_dt.replace(tzinfo=timezone.utc)
+    return now - fetched_dt <= TMDB_CACHE_TTL
 
 
 def get_cached_source(provider: str, external_id: str) -> Optional[Dict[str, Any]]:
     supabase = get_supabase_client()
     result = (
         supabase.table("sources")
-        .select("payload")
+        .select("payload,fetched_at")
         .eq("provider", provider)
         .eq("external_id", external_id)
         .limit(1)
         .execute()
     )
     if result.data:
-        return result.data[0].get("payload")
+        row = result.data[0]
+        if provider == "tmdb" and not is_tmdb_cache_fresh(row.get("fetched_at")):
+            supabase.table("sources").delete().eq("provider", provider).eq(
+                "external_id", external_id
+            ).execute()
+            return None
+        return row.get("payload")
     return None
 
 
 def upsert_source(provider: str, external_id: str, payload: Dict[str, Any]) -> None:
     supabase = get_supabase_client()
     supabase.table("sources").upsert(
-        {"provider": provider, "external_id": external_id, "payload": payload},
+        {
+            "provider": provider,
+            "external_id": external_id,
+            "payload": payload,
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+        },
         on_conflict="provider,external_id",
     ).execute()
 

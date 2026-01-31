@@ -35,3 +35,18 @@ npx supabase db push
 ```
 
 Repeat for dev and prod projects.
+
+### C++ Ratings Stats Tool
+
+Build the CLI used by the backend endpoint `/api/ratings/stats`:
+
+```bash
+cd tools/cpp
+cmake -S . -B build
+cmake --build build --config Release
+```
+
+The backend looks for the binary at `tools/cpp/build/ratings_stats`
+(`ratings_stats.exe` on Windows). Override with:
+
+- `RATINGS_STATS_BIN` (absolute path to the binary)

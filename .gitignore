@@ -11,6 +11,9 @@ __pycache__/
 .mypy_cache/
 *.log
 
+# C++ tool build
+tools/cpp/build/
+
 # env & local
 .env
 .env.*
@@ -20,3 +23,6 @@ __pycache__/
 .DS_Store
 .vscode/
 .idea/
+
+# Cursor
+.cursor/

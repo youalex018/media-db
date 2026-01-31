@@ -30,6 +30,12 @@ If a profile is not public, the endpoint returns `404` to avoid leaking account 
 - **No secrets in repo**: API keys and service role keys live in server env vars.
 - **Public data is minimal**: Only fields explicitly flagged as visible are returned.
 
+### Third-Party Data Usage (TMDb)
+
+- **Cache retention limit**: TMDb payloads are retained for no more than 6 months.
+- **AI/ML restriction**: TMDb content is not used to train machine learning or AI
+  models unless a commercial license explicitly allows it.
+
 ### Residual Risks
 
 No system can guarantee zero leaks. Risks include:

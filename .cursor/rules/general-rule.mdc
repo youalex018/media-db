@@ -34,7 +34,7 @@ You are building a personal media database (movies, TV shows, books) with:
 * **FastAPI (BFF)**: verify Supabase JWT; call TMDb/Open Library; enforce server-side rules; write canonical tables with service role; provide cohesive endpoints for the UI.
 * **Frontend (React)**: user sessions with supabase-js, call FastAPI with Bearer token, render lists/detail/forms/charts.
 
-**Non-goals (for v1):** public profiles, social features, scraping sites that disallow it, heavy ML pipelines.
+**Non-goals (for v1):** social features, scraping sites that disallow it, heavy ML pipelines. Public profiles are allowed but must be opt-in and field-level controlled.
 
 ---
 
@@ -43,7 +43,7 @@ You are building a personal media database (movies, TV shows, books) with:
 * **Works**: canonical entries (type: movie/show/book, title, year, overview, poster URL, IDs).
 * **People/Genres**: many-to-many relationships to Works.
 * **User Items**: per-user shelf entries (status, rating 0–100, dates, notes, tags).
-* **Sources Cache**: raw JSON from TMDb/Open Library to avoid repeat calls.
+* **Sources Cache**: raw JSON from TMDb/Open Library to avoid repeat calls (respect TMDb caching limits).
 * **(Optional later)** Embeddings for content-based recommendations (pgvector).
 
 Keep the schema normalized; one `(user, work)` row per shelf entry.
@@ -78,14 +78,14 @@ Keep the schema normalized; one `(user, work)` row per shelf entry.
 * **Open Source Hygiene**
 
   * Commit **migrations**, **schema**, **seed scripts** (sanitized).
-  * `.env` never committed; include `.env.example`.
+  * `.env` never committed; use env templates (`backend/env.*.template`, `frontend/env.*.template`).
   * Add secret scanning and pre-commit hooks.
 
 ---
 
 ## 7. API Design Principles (FastAPI)
 
-* Require `Authorization: Bearer <supabase_jwt>`; verify against Supabase JWKS.
+* Require `Authorization: Bearer <supabase_jwt>`; verify against Supabase JWKS (ES256 supported via `cryptography`).
 * Keep endpoints **task-oriented** and minimal:
 
   * `GET /api/search?q=` → TMDb + OL aggregate results.
@@ -121,13 +121,13 @@ Keep the schema normalized; one `(user, work)` row per shelf entry.
 * **Performance**: queries under \~200ms p50, 1s p95; search debounced; indexes for title and `(type, year)`.
 * **Reliability**: idempotent upserts; unique constraints for external IDs; retry/backoff on third-party calls.
 * **Security**: RLS tests; JWT is required everywhere beyond `/healthz`.
-* **DX**: `make dev` spins all services; `supabase db push` reproducible; seed demo data.
+* **DX**: `supabase db push` reproducible; seed demo data; smoke tests available.
 
 ---
 
 ## 11. Observability, Testing, & Docs
 
-* **Testing**: unit tests for mappers; API tests for auth + CRUD + RLS behavior; snapshot tests for UI basics.
+* **Testing**: unit tests for mappers; API tests for auth + CRUD + RLS behavior; smoke tests for search/add flows; snapshot tests for UI basics.
 * **Telemetry**: request logs with user id (hashed), endpoint, duration, status code; minimal client event logging.
 * **Docs**: concise `README` (stack, env vars, run, deploy), `ARCHITECTURE.md` (diagrams), `SECURITY.md` (keys, RLS), `MIGRATIONS.md`.
 
@@ -175,7 +175,7 @@ The agent must pause and ask targeted questions if any of these are unclear:
 
 **Data Safety & Open Source**
 
-* What environments to provision (dev/demo/prod)? Any constraints on demo seeding?
+* What environments to provision (dev/prod)? Any constraints on demo seeding?
 * Are user uploads in scope for v1?
 
 **Deployment**
@@ -201,4 +201,4 @@ Be practical, security-first, and user-centric. Choose the simplest path that pr
 
 ## Checklist
 
-Ensure that the a virtual environment is active before running Python scripts. If you are using Powershell, make sure you use Powershell-compatible language when running processes in the terminal.
+Ensure that the virtual environment is active before running Python scripts. If you are using PowerShell, use PowerShell-compatible syntax.

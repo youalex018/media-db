@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api, type LibraryItem } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Loader2, Star } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 export function LibraryPage() {
+  const navigate = useNavigate()
   const [items, setItems] = useState<LibraryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState('all')
@@ -29,6 +31,28 @@ export function LibraryPage() {
       await api.updateLibraryItem(id, updates)
   }
 
+  const getStatusOptions = (type: string) => {
+      if (type === 'book') {
+          return [
+              { value: 'want_to_read', label: 'Want to Read' },
+              { value: 'reading', label: 'Reading' },
+              { value: 'read', label: 'Read' },
+          ]
+      }
+      return [
+          { value: 'want_to_watch', label: 'Want to Watch' },
+          { value: 'watching', label: 'Watching' },
+          { value: 'watched', label: 'Watched' },
+      ]
+  }
+
+  // Determine available statuses for the main filter based on the current Type tab
+  const filterStatusOptions = () => {
+      if (typeFilter === 'book') return getStatusOptions('book');
+      if (typeFilter === 'movie' || typeFilter === 'show') return getStatusOptions('movie');
+      return [...getStatusOptions('movie'), ...getStatusOptions('book')];
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -41,12 +65,9 @@ export function LibraryPage() {
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="watched">Watched</SelectItem>
-                    <SelectItem value="watching">Watching</SelectItem>
-                    <SelectItem value="want_to_watch">Want to Watch</SelectItem>
-                    <SelectItem value="reading">Reading</SelectItem>
-                    <SelectItem value="read">Read</SelectItem>
-                    <SelectItem value="want_to_read">Want to Read</SelectItem>
+                    {filterStatusOptions().map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
                 </SelectContent>
             </Select>
         </div>
@@ -73,15 +94,18 @@ export function LibraryPage() {
       ) : (
         <div className="grid gap-4">
             {items.map(item => (
-                <div key={item.id} className="flex gap-4 p-4 rounded-lg border bg-card text-card-foreground shadow-sm items-start">
-                    <div className="h-24 w-16 bg-muted shrink-0 rounded overflow-hidden">
+                <div key={item.id} className="flex gap-4 p-4 rounded-lg border bg-card text-card-foreground shadow-sm items-start transition-colors hover:bg-muted/50">
+                    <div 
+                        className="h-24 w-16 bg-muted shrink-0 rounded overflow-hidden cursor-pointer"
+                        onClick={() => navigate(`/library/${item.id}`)}
+                    >
                         {item.poster && <img src={item.poster} alt={item.title} className="h-full w-full object-cover" />}
                     </div>
                     
                     <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start">
-                            <div>
-                                <h3 className="font-semibold truncate">{item.title}</h3>
+                            <div className="cursor-pointer" onClick={() => navigate(`/library/${item.id}`)}>
+                                <h3 className="font-semibold truncate hover:underline">{item.title}</h3>
                                 <p className="text-sm text-muted-foreground">{item.year} • {item.type}</p>
                             </div>
                             <Badge variant={
@@ -116,15 +140,16 @@ export function LibraryPage() {
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="watched">Watched</SelectItem>
-                                        <SelectItem value="watching">Watching</SelectItem>
-                                        <SelectItem value="want_to_watch">Want to Watch</SelectItem>
-                                        <SelectItem value="read">Read</SelectItem>
-                                        <SelectItem value="reading">Reading</SelectItem>
-                                        <SelectItem value="want_to_read">Want to Read</SelectItem>
+                                        {getStatusOptions(item.type).map(opt => (
+                                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
+                            
+                            <Button variant="ghost" size="sm" onClick={() => navigate(`/library/${item.id}`)}>
+                                Details
+                            </Button>
                         </div>
                     </div>
                 </div>

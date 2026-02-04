@@ -6,7 +6,9 @@ import { Layout } from '@/components/Layout'
 import { AuthPage } from '@/pages/Auth'
 import { SearchPage } from '@/pages/Search'
 import { LibraryPage } from '@/pages/Library'
+import { ProfilePage } from '@/pages/Profile'
 import { StatsPage } from '@/pages/Stats'
+import { ItemDetailPage } from '@/pages/ItemDetail'
 
 function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -51,8 +53,9 @@ function App() {
                 <Route path="/" element={<Navigate to="/search" replace />} />
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/library" element={<LibraryPage />} />
+                <Route path="/library/:id" element={<ItemDetailPage />} />
                 <Route path="/stats" element={<StatsPage />} />
-                <Route path="/profile" element={<div className="p-8">Profile Placeholder</div>} />
+                <Route path="/profile" element={<ProfilePage />} />
                 <Route path="*" element={<Navigate to="/search" replace />} />
             </Route>
         )}

@@ -23,6 +23,7 @@ export interface LibraryItem extends Work {
   status: 'watched' | 'watching' | 'want_to_watch' | 'reading' | 'read' | 'want_to_read';
   rating: number; // 0-100
   notes?: string;
+  review?: string;
   user_id?: string;
 }
 
@@ -89,9 +90,14 @@ export const api = {
   updateLibraryItem: async (id: string | number, updates: Partial<LibraryItem>) => {
     await new Promise(resolve => setTimeout(resolve, 300));
     MOCK_LIBRARY = MOCK_LIBRARY.map(item => 
-        item.id === id ? { ...item, ...updates } : item
+        item.id === id || item.id === Number(id) ? { ...item, ...updates } : item
     );
     return { success: true }
+  },
+
+  getLibraryItem: async (id: string | number) => {
+    await new Promise(resolve => setTimeout(resolve, 400));
+    return MOCK_LIBRARY.find(item => item.id === id || item.id === Number(id));
   },
 
   getStats: async (jsonData: any) => {

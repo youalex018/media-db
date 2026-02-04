@@ -10,8 +10,9 @@ export function Layout() {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
+    localStorage.removeItem('sb-fake-session');
     await supabase.auth.signOut();
-    navigate('/auth');
+    window.location.href = '/auth'; // Force full reload to clear any memory state/hooks
   };
 
   const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => (
@@ -32,7 +33,7 @@ export function Layout() {
   );
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row bg-background">
+    <div className="flex h-screen overflow-hidden flex-col md:flex-row bg-background">
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 border-b">
         <div className="font-bold text-xl">Media DB</div>

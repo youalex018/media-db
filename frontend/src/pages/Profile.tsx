@@ -31,6 +31,26 @@ export function ProfilePage() {
             setStats(statsData)
           } catch (e) {
             console.error(e)
+            // Fallback: derive basic stats from library if ratings endpoint is unavailable.
+            try {
+              const library = await api.getLibrary()
+              const rated = library.filter((item: any) => typeof item.rating === 'number')
+              const total = library.length
+              const avg = rated.length > 0
+                ? Math.round(rated.reduce((sum: number, item: any) => sum + item.rating, 0) / rated.length)
+                : 0
+              setStats({
+                average_rating: avg,
+                total_items: total,
+                by_type: {
+                  movie: library.filter((item: any) => item.type === 'movie').length,
+                  show: library.filter((item: any) => item.type === 'show').length,
+                  book: library.filter((item: any) => item.type === 'book').length,
+                },
+              })
+            } catch (fallbackError) {
+              console.error(fallbackError)
+            }
           }
       }
 

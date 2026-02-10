@@ -20,7 +20,7 @@ class Config:
     
     # Optional environment variables with defaults
     FLASK_ENV = os.getenv('FLASK_ENV', 'production')
-    ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
+    ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',')
     TMDB_API_KEY = os.getenv('TMDB_API_KEY')
     
     # Validation

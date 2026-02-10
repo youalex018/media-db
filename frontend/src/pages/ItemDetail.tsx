@@ -15,6 +15,7 @@ export function ItemDetailPage() {
   const [item, setItem] = useState<LibraryItem | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saveToast, setSaveToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   
   // Local edit state
   const [rating, setRating] = useState(0)
@@ -40,13 +41,20 @@ export function ItemDetailPage() {
   const handleSave = async () => {
     if (!item) return
     setSaving(true)
-    await api.updateLibraryItem(item.id, {
-        rating,
-        status: status as any,
-        review
-    })
-    setSaving(false)
-    navigate('/library')
+    try {
+      await api.updateLibraryItem(item.id, {
+          rating,
+          status: status as any,
+          review
+      })
+      setSaveToast({ type: 'success', message: 'Library item saved' })
+      window.setTimeout(() => navigate('/library'), 900)
+    } catch (error: any) {
+      setSaveToast({ type: 'error', message: error?.message || 'Failed to save changes' })
+      window.setTimeout(() => setSaveToast(null), 1800)
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) {
@@ -70,6 +78,18 @@ export function ItemDetailPage() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      {saveToast && (
+        <div
+          className={`fixed right-4 top-4 z-50 rounded-md px-4 py-2 text-sm shadow-lg ${
+            saveToast.type === 'success'
+              ? 'bg-emerald-600 text-white'
+              : 'bg-destructive text-destructive-foreground'
+          }`}
+        >
+          {saveToast.message}
+        </div>
+      )}
+
       <Button variant="ghost" className="pl-0 gap-2" onClick={() => navigate('/library')}>
         <ChevronLeft className="h-4 w-4" /> Back to Library
       </Button>
@@ -106,17 +126,22 @@ export function ItemDetailPage() {
                                 <SelectContent>
                                     {isBook ? (
                                         <>
+                                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Read</div>
                                             <SelectItem value="want_to_read">Want to Read</SelectItem>
                                             <SelectItem value="reading">Reading</SelectItem>
                                             <SelectItem value="read">Read</SelectItem>
                                         </>
                                     ) : (
                                         <>
+                                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Watch</div>
                                             <SelectItem value="want_to_watch">Want to Watch</SelectItem>
                                             <SelectItem value="watching">Watching</SelectItem>
                                             <SelectItem value="watched">Watched</SelectItem>
                                         </>
                                     )}
+                                    <div className="my-1 h-px bg-muted" />
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Other</div>
+                                    <SelectItem value="abandoned">Abandoned</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

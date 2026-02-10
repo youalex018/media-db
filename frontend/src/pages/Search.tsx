@@ -49,42 +49,71 @@ export function SearchPage() {
     doSearch()
   }, [debouncedQuery, type])
 
+  const [addError, setAddError] = useState<string | null>(null)
+  const [addingId, setAddingId] = useState<string | number | null>(null)
+  const isHero = !query.trim() && results.length === 0 && !loading
+
   const handleAdd = async (work: Work) => {
-    await api.addToLibrary(work)
-    setAddedIds(prev => new Set(prev).add(work.id))
+    setAddError(null)
+    setAddingId(work.id)
+    try {
+        await api.addToLibrary(work)
+        setAddedIds(prev => new Set(prev).add(work.id))
+    } catch (e: any) {
+        console.error('Failed to add to library:', e)
+        setAddError(e.message || 'Failed to add item')
+    } finally {
+        setAddingId(null)
+    }
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4">
-        <h1 className="text-3xl font-bold tracking-tight">Search</h1>
-        
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search movies, shows, books..."
-              className="pl-8"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
+      <div
+        className={`transition-all duration-500 ease-out ${
+          isHero
+            ? 'min-h-[58vh] flex items-center justify-center'
+            : 'min-h-0'
+        }`}
+      >
+        <div className={`flex flex-col gap-4 w-full ${isHero ? 'max-w-2xl' : ''}`}>
+          <h1 className={`font-bold tracking-tight transition-all duration-500 ${isHero ? 'text-5xl text-center' : 'text-3xl'}`}>
+            Search
+          </h1>
           
-          <Tabs value={type} onValueChange={(v) => setType(v as WorkType)} className="w-auto">
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="movie">Movies</TabsTrigger>
-              <TabsTrigger value="show">TV</TabsTrigger>
-              <TabsTrigger value="book">Books</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search movies, shows, books..."
+                className={`pl-8 transition-all duration-500 ${isHero ? 'h-12 text-base' : ''}`}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+            
+            <Tabs value={type} onValueChange={(v) => setType(v as WorkType)} className="w-auto">
+              <TabsList>
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="movie">Movies</TabsTrigger>
+                <TabsTrigger value="show">TV</TabsTrigger>
+                <TabsTrigger value="book">Books</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
       </div>
 
       {loading && (
         <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {addError && (
+        <div className="p-3 rounded-md bg-destructive/15 text-destructive text-sm">
+            {addError}
         </div>
       )}
 
@@ -117,9 +146,13 @@ export function SearchPage() {
                 className="w-full" 
                 variant={addedIds.has(work.id) ? "secondary" : "default"}
                 onClick={() => handleAdd(work)}
-                disabled={addedIds.has(work.id)}
+                disabled={addedIds.has(work.id) || addingId === work.id}
               >
-                {addedIds.has(work.id) ? (
+                {addingId === work.id ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Adding...
+                    </>
+                ) : addedIds.has(work.id) ? (
                     <>
                         <Check className="mr-2 h-4 w-4" /> Added
                     </>

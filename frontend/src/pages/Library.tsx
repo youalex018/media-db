@@ -14,13 +14,22 @@ export function LibraryPage() {
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [saveToast, setSaveToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [pageError, setPageError] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadLibrary() {
       setLoading(true)
-      const data = await api.getLibrary({ type: typeFilter, status: statusFilter })
-      setItems(data)
-      setLoading(false)
+      setPageError(null)
+      try {
+        const data = await api.getLibrary({ type: typeFilter, status: statusFilter })
+        setItems(data)
+      } catch (error: any) {
+        setItems([])
+        setPageError(error?.message || 'Failed to load library')
+      } finally {
+        setLoading(false)
+      }
     }
     loadLibrary()
   }, [typeFilter, statusFilter])
@@ -28,23 +37,32 @@ export function LibraryPage() {
   const handleUpdate = async (id: string | number, updates: Partial<LibraryItem>) => {
       // Optimistic update
       setItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item))
-      await api.updateLibraryItem(id, updates)
+      try {
+        await api.updateLibraryItem(id, updates)
+        setSaveToast({ type: 'success', message: 'Library item saved' })
+      } catch (error: any) {
+        setSaveToast({ type: 'error', message: error?.message || 'Failed to save change' })
+      } finally {
+        window.setTimeout(() => setSaveToast(null), 1800)
+      }
   }
 
-  const getStatusOptions = (type: string) => {
-      if (type === 'book') {
-          return [
-              { value: 'want_to_read', label: 'Want to Read' },
-              { value: 'reading', label: 'Reading' },
-              { value: 'read', label: 'Read' },
-          ]
-      }
-      return [
-          { value: 'want_to_watch', label: 'Want to Watch' },
-          { value: 'watching', label: 'Watching' },
-          { value: 'watched', label: 'Watched' },
-      ]
-  }
+  const watchOptions = [
+    { value: 'want_to_watch', label: 'Want to Watch' },
+    { value: 'watching', label: 'Watching' },
+    { value: 'watched', label: 'Watched' },
+  ]
+  const readOptions = [
+    { value: 'want_to_read', label: 'Want to Read' },
+    { value: 'reading', label: 'Reading' },
+    { value: 'read', label: 'Read' },
+  ]
+  const commonOptions = [{ value: 'abandoned', label: 'Abandoned' }]
+
+  const getStatusOptions = (type: string) => [
+    ...(type === 'book' ? readOptions : watchOptions),
+    ...commonOptions,
+  ]
 
   // Determine available statuses for the main filter based on the current Type tab
   const filterStatusOptions = () => {
@@ -55,6 +73,18 @@ export function LibraryPage() {
 
   return (
     <div className="space-y-6">
+      {saveToast && (
+        <div
+          className={`fixed right-4 top-4 z-50 rounded-md px-4 py-2 text-sm shadow-lg ${
+            saveToast.type === 'success'
+              ? 'bg-emerald-600 text-white'
+              : 'bg-destructive text-destructive-foreground'
+          }`}
+        >
+          {saveToast.message}
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Library</h1>
         
@@ -65,13 +95,38 @@ export function LibraryPage() {
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">All Statuses</SelectItem>
-                    {filterStatusOptions().map(opt => (
+                    {typeFilter === 'all' ? (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Watch</div>
+                        {watchOptions.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                        <div className="my-1 h-px bg-muted" />
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Read</div>
+                        {readOptions.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                        <div className="my-1 h-px bg-muted" />
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Other</div>
+                        {commonOptions.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </>
+                    ) : (
+                      filterStatusOptions().map(opt => (
                         <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
+                      ))
+                    )}
                 </SelectContent>
             </Select>
         </div>
       </div>
+
+      {pageError && (
+        <div className="rounded-md bg-destructive/15 text-destructive px-3 py-2 text-sm">
+          {pageError}
+        </div>
+      )}
 
       <Tabs value={typeFilter} onValueChange={setTypeFilter} className="w-full">
         <TabsList>
@@ -112,7 +167,7 @@ export function LibraryPage() {
                                 item.status === 'watched' || item.status === 'read' ? 'secondary' : 
                                 item.status === 'watching' || item.status === 'reading' ? 'default' : 'outline'
                             }>
-                                {item.status.replace(/_/g, ' ')}
+                                {item.status ? item.status.replace(/_/g, ' ') : 'unknown'}
                             </Badge>
                         </div>
 

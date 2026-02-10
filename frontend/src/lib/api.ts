@@ -1,10 +1,8 @@
-// Mock API for development purposes
-
 import { createClient } from '@supabase/supabase-js'
 
-// Basic Supabase setup if env vars are present, otherwise mock
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://mock.supabase.co'
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'mock-key'
+// Basic Supabase setup
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
@@ -17,103 +15,287 @@ export interface Work {
   type: WorkType;
   poster: string;
   overview: string;
+  // External source info for adding to library
+  source?: {
+      provider: 'tmdb' | 'openlibrary';
+      external_id: string;
+      source_type?: string;
+  };
 }
 
 export interface LibraryItem extends Work {
-  status: 'watched' | 'watching' | 'want_to_watch' | 'reading' | 'read' | 'want_to_read';
+  status: 'watched' | 'watching' | 'want_to_watch' | 'reading' | 'read' | 'want_to_read' | 'abandoned';
   rating: number; // 0-100
   notes?: string;
-  review?: string;
+  review?: string; // Mapped to 'notes' in DB
   user_id?: string;
+  user_item_id?: number; // DB primary key for user_items
 }
 
-// Mock data
-const MOCK_SEARCH_RESULTS: Work[] = [
-  { id: 1, title: 'Inception', year: '2010', type: 'movie', poster: 'https://placehold.co/150x225/png?text=Inception', overview: 'A thief who steals corporate secrets through the use of dream-sharing technology...' },
-  { id: 2, title: 'Interstellar', year: '2014', type: 'movie', poster: 'https://placehold.co/150x225/png?text=Interstellar', overview: 'A team of explorers travel through a wormhole in space in an attempt to ensure humanity\'s survival.' },
-  { id: 3, title: 'The Dark Knight', year: '2008', type: 'movie', poster: 'https://placehold.co/150x225/png?text=Dark+Knight', overview: 'When the menace known as the Joker wreaks havoc and chaos on the people of Gotham...' },
-  { id: 4, title: 'Breaking Bad', year: '2008', type: 'show', poster: 'https://placehold.co/150x225/png?text=Breaking+Bad', overview: 'A high school chemistry teacher diagnosed with inoperable lung cancer turns to manufacturing and selling methamphetamine...' },
-  { id: 5, title: 'Dune', year: '1965', type: 'book', poster: 'https://placehold.co/150x225/png?text=Dune', overview: 'Set on the desert planet Arrakis, Dune is the story of the boy Paul Atreides...' },
-  { id: 6, title: 'The Matrix', year: '1999', type: 'movie', poster: 'https://placehold.co/150x225/png?text=The+Matrix', overview: 'A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers.' },
-]
+function normalizeJoinedWork(rawWork: any): any | null {
+  if (!rawWork) return null;
+  if (Array.isArray(rawWork)) {
+    return rawWork.length > 0 ? rawWork[0] : null;
+  }
+  return rawWork;
+}
 
-let MOCK_LIBRARY: LibraryItem[] = [
-  { id: 1, title: 'Inception', year: '2010', type: 'movie', poster: 'https://placehold.co/150x225/png?text=Inception', overview: '...', status: 'watched', rating: 95 },
-  { id: 4, title: 'Breaking Bad', year: '2008', type: 'show', poster: 'https://placehold.co/150x225/png?text=Breaking+Bad', overview: '...', status: 'watching', rating: 100 },
-]
+// === Status mapping between frontend display and DB enum ===
+// DB enum: 'wishlist' | 'in_progress' | 'finished' | 'abandoned'
+// Frontend display values vary by type (movie/show vs book)
+type DbStatus = 'wishlist' | 'in_progress' | 'finished' | 'abandoned';
+type FrontendStatus = 'watched' | 'watching' | 'want_to_watch' | 'reading' | 'read' | 'want_to_read' | 'abandoned';
+
+const frontendToDb: Record<FrontendStatus, DbStatus> = {
+    'want_to_watch': 'wishlist',
+    'want_to_read': 'wishlist',
+    'watching': 'in_progress',
+    'reading': 'in_progress',
+    'watched': 'finished',
+    'read': 'finished',
+    'abandoned': 'abandoned',
+};
+
+function dbStatusToFrontend(dbStatus: string, type: string): FrontendStatus {
+    const isBook = type === 'book';
+    switch (dbStatus) {
+        case 'wishlist': return isBook ? 'want_to_read' : 'want_to_watch';
+        case 'in_progress': return isBook ? 'reading' : 'watching';
+        case 'finished': return isBook ? 'read' : 'watched';
+        case 'abandoned': return 'abandoned';
+        default: return isBook ? 'want_to_read' : 'want_to_watch';
+    }
+}
+
+function frontendStatusToDb(status: string): DbStatus {
+    return frontendToDb[status as FrontendStatus] || 'wishlist';
+}
 
 export const api = {
   search: async (query: string, type: WorkType = 'all') => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 600));
-    
     if (!query) return [];
-
-    return MOCK_SEARCH_RESULTS.filter(item => 
-      item.title.toLowerCase().includes(query.toLowerCase()) && 
-      (type === 'all' || item.type === type)
-    )
+    
+    const params = new URLSearchParams({ q: query });
+    if (type !== 'all') {
+        params.append('type', type);
+    }
+    
+    const res = await fetch(`/api/search?${params.toString()}`, {
+        headers: {
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+    });
+    
+    if (!res.ok) throw new Error('Search failed');
+    
+    const data = await res.json();
+    return data.results.map((item: any) => ({
+        id: item.source?.external_id || Math.random(), // Use external ID for key if available
+        title: item.title,
+        year: item.year,
+        type: item.type,
+        poster: item.poster_url || item.poster,
+        overview: item.overview,
+        source: item.source
+    }));
   },
   
   addToLibrary: async (item: Work) => {
-    await new Promise(resolve => setTimeout(resolve, 400));
-    const newItem: LibraryItem = { 
-        ...item, 
-        status: item.type === 'book' ? 'want_to_read' : 'want_to_watch', 
-        rating: 0 
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) throw new Error('Not authenticated');
+
+    const payload = {
+        source: item.source,
+        status: frontendStatusToDb(item.type === 'book' ? 'want_to_read' : 'want_to_watch'),
+        rating: 0
     };
     
-    // Check if already exists
-    if (!MOCK_LIBRARY.find(i => i.id === item.id)) {
-        MOCK_LIBRARY = [newItem, ...MOCK_LIBRARY];
+    const res = await fetch('/api/library/add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(payload)
+    });
+    
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail?.error || 'Failed to add to library');
     }
     
-    return { success: true, item: newItem }
+    const data = await res.json();
+    // Return a LibraryItem structure
+    return {
+        success: true,
+        item: {
+            ...item,
+            id: data.work.id, // Use the real DB ID for the work
+            status: dbStatusToFrontend(data.user_item.status, item.type),
+            rating: data.user_item.rating,
+            user_item_id: data.user_item.id
+        }
+    }
   },
   
   getLibrary: async (filters: { type?: string, status?: string } = {}) => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    let items = [...MOCK_LIBRARY];
-    
-    if (filters.type && filters.type !== 'all') {
-        items = items.filter(i => i.type === filters.type);
-    }
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) return [];
+
+    let query = supabase
+        .from('user_items')
+        .select(`
+            *,
+            work:works (
+                id, title, year, type, poster_url, overview
+            )
+        `)
+        .eq('user_id', session.user.id);
+
+    // Apply filters
+    // Note: Filtering by joined table fields (work.type) is trickier in simple Supabase query syntax 
+    // without flattening or using !inner joins.
+    // For now, let's fetch all and filter in memory if needed, or use !inner for strict filtering.
     
     if (filters.status && filters.status !== 'all') {
-        items = items.filter(i => i.status === filters.status);
+        query = query.eq('status', frontendStatusToDb(filters.status));
     }
     
+    const { data, error } = await query;
+    if (error) throw error;
+    
+    const items = (data || [])
+      .map((row: any) => {
+        const work = normalizeJoinedWork(row.work);
+        if (!work) return null;
+        return {
+          id: work.id,
+          user_item_id: row.id,
+          title: work.title,
+          year: work.year,
+          type: work.type,
+          poster: work.poster_url,
+          overview: work.overview,
+          status: dbStatusToFrontend(row.status, work.type),
+          rating: row.rating,
+          review: row.notes, // Map DB notes to frontend review
+          notes: row.notes,
+          user_id: row.user_id,
+        };
+      })
+      .filter(Boolean) as LibraryItem[];
+
+    if (filters.type && filters.type !== 'all') {
+        return items.filter((i: any) => i.type === filters.type);
+    }
+
     return items;
   },
   
-  updateLibraryItem: async (id: string | number, updates: Partial<LibraryItem>) => {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    MOCK_LIBRARY = MOCK_LIBRARY.map(item => 
-        item.id === id || item.id === Number(id) ? { ...item, ...updates } : item
-    );
+  updateLibraryItem: async (workId: string | number, updates: Partial<LibraryItem>) => {
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) throw new Error('Not authenticated');
+
+    // Map frontend values back to DB columns
+    const dbUpdates: any = {};
+    if (updates.status) dbUpdates.status = frontendStatusToDb(updates.status);
+    if (updates.rating !== undefined) dbUpdates.rating = updates.rating;
+    if (updates.review !== undefined) dbUpdates.notes = updates.review;
+    if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+
+    const { error } = await supabase
+        .from('user_items')
+        .update(dbUpdates)
+        .eq('work_id', workId)
+        .eq('user_id', session.user.id);
+        
+    if (error) throw error;
     return { success: true }
   },
 
-  getLibraryItem: async (id: string | number) => {
-    await new Promise(resolve => setTimeout(resolve, 400));
-    return MOCK_LIBRARY.find(item => item.id === id || item.id === Number(id));
+  getLibraryItem: async (workId: string | number) => {
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) return null;
+
+    const { data, error } = await supabase
+        .from('user_items')
+        .select(`
+            *,
+            work:works (
+                id, title, year, type, poster_url, overview
+            )
+        `)
+        .eq('work_id', workId)
+        .eq('user_id', session.user.id)
+        .single();
+        
+    if (error || !data) return null;
+    const work = normalizeJoinedWork(data.work);
+    if (!work) return null;
+    
+    return {
+        id: work.id,
+        user_item_id: data.id,
+        title: work.title,
+        year: work.year,
+        type: work.type,
+        poster: work.poster_url,
+        overview: work.overview,
+        status: dbStatusToFrontend(data.status, work.type),
+        rating: data.rating,
+        review: data.notes,
+        notes: data.notes,
+        user_id: data.user_id
+    } as LibraryItem;
   },
 
   getStats: async (jsonData: any) => {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    // Calculate real stats from mock library if json input is empty, otherwise pretend to process json
-    const total = MOCK_LIBRARY.length;
-    const avg = total > 0 ? MOCK_LIBRARY.reduce((acc, i) => acc + i.rating, 0) / total : 0;
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) throw new Error('Not authenticated');
     
-    return {
-      average_rating: Math.round(avg),
-      total_items: total,
-      by_type: { 
-          movie: MOCK_LIBRARY.filter(i => i.type === 'movie').length,
-          show: MOCK_LIBRARY.filter(i => i.type === 'show').length,
-          book: MOCK_LIBRARY.filter(i => i.type === 'book').length
-      }
+    // If jsonData is provided, we send it (for the manual paste feature)
+    // If not, we might want to fetch library items first? 
+    // The previous mock implementation calculated from library if empty.
+    // The backend endpoint requires a list of items.
+    
+    let payload = jsonData;
+    
+    // If no valid manual input array, calculate from the user's library.
+    if (!Array.isArray(payload) || payload.length === 0) {
+         const items = await api.getLibrary();
+         payload = items
+           .filter((i: any) => typeof i.rating === 'number' && !Number.isNaN(i.rating))
+           .map((i: any) => ({
+             type: i.type,
+             rating: i.rating
+           }));
     }
+
+    const res = await fetch('/api/ratings/stats', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(payload)
+    });
+    
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail?.error || 'Failed to calculate stats');
+    }
+    
+    const data = await res.json();
+    // Backend returns { stats: { ... } } where stats matches C++ output
+    const s = data.stats;
+    return {
+        average_rating: Math.round(s.overall?.average_rating || 0),
+        total_items: s.overall?.count || 0,
+        by_type: {
+            movie: s.types?.movie?.count || 0,
+            show: s.types?.show?.count || 0,
+            book: s.types?.book?.count || 0
+        }
+    }; 
   }
 }

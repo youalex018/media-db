@@ -2,7 +2,7 @@
 
 A personal media database for tracking movies, TV shows, books, and more. Built with **Supabase** (auth + database), **FastAPI** (secure backend), and **React + TypeScript** (frontend).
 
-## ✨ Features
+## Features
 
 - **Authentication**: Email magic link sign-in with Supabase
 - **Token Security**: Token-based auth with key set validation and caching
@@ -11,7 +11,7 @@ A personal media database for tracking movies, TV shows, books, and more. Built 
 - **User Library**: Personal tracking with status, ratings, and notes
 - **REST API**: FastAPI backend with comprehensive error handling
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Node.js 18+
@@ -105,7 +105,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 5000
 5. You should be redirected back, signed in
 6. Click "Test Backend Auth" to verify backend integration
 
-## 🔧 Configuration
+## Configuration
 
 ### Getting Supabase Credentials
 
@@ -144,7 +144,7 @@ ALLOWED_ORIGINS=http://localhost:3000
 - File encoding must be UTF-8 (no BOM)
 - Activate virtual environment before running server
 
-## 🛡️ Security
+## Security
 
 ### Authentication Model
 - **Frontend**: Uses Supabase anon key (safe for public exposure)
@@ -174,7 +174,7 @@ ALLOWED_ORIGINS=http://localhost:3000
 
 See [`SECURITY.md`](SECURITY.md) for detailed security architecture.
 
-## 📡 API Endpoints
+## API Endpoints
 
 ### Public
 - `GET /healthz` - Health check (returns `{"status": "ok"}`)
@@ -206,7 +206,7 @@ See [`SECURITY.md`](SECURITY.md) for detailed security architecture.
 | `signature_verification_failed` | Invalid signature |
 | `jwks_unavailable` | Cannot fetch auth key set |
 
-## 🧪 Testing
+## Testing
 
 ### Quick Tests
 ```bash
@@ -229,7 +229,7 @@ python test_rls.py
 
 See [`docs/TESTING.md`](docs/TESTING.md) for comprehensive testing guide.
 
-## 📖 Documentation
+## Documentation
 
 - **[TESTING.md](docs/TESTING.md)** - Complete testing guide
 - **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
@@ -237,7 +237,7 @@ See [`docs/TESTING.md`](docs/TESTING.md) for comprehensive testing guide.
 - **[AUTH_TESTS.md](docs/AUTH_TESTS.md)** - Authentication testing details
 - **[SECURITY.md](SECURITY.md)** - Security model and RLS policies
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Frontend Issues
 - **Blank auth page?** Check `.env.local` and restart Vite dev server
@@ -256,7 +256,7 @@ See [`docs/TESTING.md`](docs/TESTING.md) for comprehensive testing guide.
 
 See [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) for detailed solutions.
 
-## 🤝 Contributing
+## Contributing
 
 This is a personal project, but suggestions and feedback are welcome! Please:
 
@@ -266,11 +266,7 @@ This is a personal project, but suggestions and feedback are welcome! Please:
 4. Add tests for new features
 5. Update documentation as needed
 
-## 📄 License
-
-This project is for personal use. See LICENSE file for details.
-
-## ⚠️ Important Reminders
+## Important Reminders
 
 - **Never commit** `.env` files or service role keys
 - **Always use RLS** on tables with user data

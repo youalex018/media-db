@@ -69,7 +69,7 @@ async def public_profile(username: str):
 
 
 @router.get('/search')
-async def search(request: Request, user=Depends(get_current_user)):
+async def search(request: Request, _user=Depends(get_current_user)):
     """Search external sources (TMDb + Open Library)."""
     query = request.query_params.get('q', '')
     if not query:
@@ -210,7 +210,16 @@ def _ratings_stats_binary_path() -> Path:
         return Path(env_path)
     repo_root = Path(__file__).resolve().parents[2]
     binary_name = "ratings_stats.exe" if os.name == "nt" else "ratings_stats"
-    return repo_root / "tools" / "cpp" / "build" / binary_name
+    build_dir = repo_root / "tools" / "cpp" / "build"
+    candidates = [
+        build_dir / binary_name,
+        build_dir / "Release" / binary_name,
+        build_dir / "Debug" / binary_name,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 def _ratings_stats_command(binary_path: Path) -> list[str]:
@@ -260,7 +269,7 @@ def _validate_ratings_payload(data: object) -> list[dict[str, object]]:
 
 
 @router.post('/ratings/stats')
-async def ratings_stats(request: Request, user=Depends(get_current_user)):
+async def ratings_stats(request: Request, _user=Depends(get_current_user)):
     """Compute rating stats using the C++ CLI tool."""
     data = await request.json()
     ratings = _validate_ratings_payload(data)

@@ -11,10 +11,11 @@ export type WorkType = 'movie' | 'show' | 'book' | 'all';
 export interface Work {
   id: string | number;
   title: string;
-  year: string;
+  year: number | null;
   type: WorkType;
   poster: string;
   overview: string;
+  genres?: string[];
   // External source info for adding to library
   source?: {
       provider: 'tmdb' | 'openlibrary';
@@ -30,7 +31,21 @@ export interface LibraryItem extends Work {
   review?: string; // Mapped to 'notes' in DB
   user_id?: string;
   user_item_id?: number; // DB primary key for user_items
+  genres?: string[];
+  tags?: string[];
+  isFavorite?: boolean;
 }
+
+export interface LibraryFilters {
+  type?: string;
+  status?: string;
+  year?: number | null;
+  tags?: string[];
+  genres?: string[];
+  minRating?: number;
+}
+
+const FAVORITES_TAG = 'favorites';
 
 function normalizeJoinedWork(rawWork: any): any | null {
   if (!rawWork) return null;
@@ -71,6 +86,38 @@ function frontendStatusToDb(status: string): DbStatus {
     return frontendToDb[status as FrontendStatus] || 'wishlist';
 }
 
+async function getGenresByWorkIds(workIds: Array<string | number>): Promise<Record<string, string[]>> {
+  if (workIds.length === 0) return {};
+  const numericWorkIds = [...new Set(workIds.map((id) => Number(id)).filter((id) => Number.isFinite(id)))];
+  if (numericWorkIds.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from('work_genres')
+    .select(`
+      work_id,
+      genres (name)
+    `)
+    .in('work_id', numericWorkIds);
+  if (error) throw error;
+
+  const byWorkId: Record<string, string[]> = {};
+  for (const row of (data || []) as any[]) {
+    const workId = row?.work_id;
+    const fromGenres = row?.genres;
+    const genreName =
+      typeof row?.genre?.name === 'string'
+        ? row.genre.name
+        : Array.isArray(fromGenres)
+          ? fromGenres[0]?.name
+          : fromGenres?.name;
+    if (workId == null || typeof genreName !== 'string') continue;
+    const key = String(workId);
+    if (!byWorkId[key]) byWorkId[key] = [];
+    if (!byWorkId[key].includes(genreName)) byWorkId[key].push(genreName);
+  }
+  return byWorkId;
+}
+
 export const api = {
   search: async (query: string, type: WorkType = 'all') => {
     if (!query) return [];
@@ -96,8 +143,39 @@ export const api = {
         type: item.type,
         poster: item.poster_url || item.poster,
         overview: item.overview,
+        genres: Array.isArray(item.genre_names) ? item.genre_names : [],
         source: item.source
     }));
+  },
+
+  getLibrarySourceKeys: async (): Promise<Set<string>> => {
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) return new Set();
+
+    const { data, error } = await supabase
+      .from('user_items')
+      .select(`
+        work:works (
+          tmdb_id,
+          openlibrary_id
+        )
+      `)
+      .eq('user_id', session.user.id);
+    if (error) throw error;
+
+    const keys = new Set<string>();
+    for (const row of (data || []) as any[]) {
+      const work = normalizeJoinedWork(row?.work);
+      const tmdbId = work?.tmdb_id;
+      const openlibraryId = work?.openlibrary_id;
+      if (tmdbId !== null && tmdbId !== undefined) {
+        keys.add(`tmdb:${String(tmdbId)}`);
+      }
+      if (openlibraryId) {
+        keys.add(`openlibrary:${String(openlibraryId)}`);
+      }
+    }
+    return keys;
   },
   
   addToLibrary: async (item: Work) => {
@@ -138,7 +216,7 @@ export const api = {
     }
   },
   
-  getLibrary: async (filters: { type?: string, status?: string } = {}) => {
+  getLibrary: async (filters: LibraryFilters = {}) => {
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) return [];
 
@@ -147,7 +225,13 @@ export const api = {
         .select(`
             *,
             work:works (
-                id, title, year, type, poster_url, overview
+                id, title, year, type, poster_url, overview,
+                work_genres (
+                    genre:genres (name)
+                )
+            ),
+            user_item_tags (
+                tag:user_tag_names (name)
             )
         `)
         .eq('user_id', session.user.id);
@@ -160,11 +244,15 @@ export const api = {
     if (filters.status && filters.status !== 'all') {
         query = query.eq('status', frontendStatusToDb(filters.status));
     }
+
+    if (typeof filters.minRating === 'number' && !Number.isNaN(filters.minRating) && filters.minRating > 0) {
+      query = query.gte('rating', filters.minRating);
+    }
     
     const { data, error } = await query;
     if (error) throw error;
     
-    const items = (data || [])
+    let items = (data || [])
       .map((row: any) => {
         const work = normalizeJoinedWork(row.work);
         if (!work) return null;
@@ -181,15 +269,130 @@ export const api = {
           review: row.notes, // Map DB notes to frontend review
           notes: row.notes,
           user_id: row.user_id,
+          genres: ((work.work_genres || []) as any[])
+            .map((item: any) => item?.genre?.name)
+            .filter((name: any) => typeof name === 'string'),
+          tags: ((row.user_item_tags || []) as any[])
+            .map((item: any) => item?.tag?.name)
+            .filter((name: any) => typeof name === 'string'),
         };
       })
       .filter(Boolean) as LibraryItem[];
 
+    const genreByWorkId = await getGenresByWorkIds(items.map((item) => item.id));
+    items = items.map((item) => ({
+      ...item,
+      genres: genreByWorkId[String(item.id)] || item.genres || [],
+    }));
+
+    const withFavorites = items.map((item) => ({
+      ...item,
+      isFavorite: (item.tags || []).some((tag) => tag.toLowerCase() === FAVORITES_TAG),
+    }));
+
+    let filtered = withFavorites;
+
     if (filters.type && filters.type !== 'all') {
-        return items.filter((i: any) => i.type === filters.type);
+      filtered = filtered.filter((item) => item.type === filters.type);
     }
 
-    return items;
+    if (typeof filters.year === 'number' && !Number.isNaN(filters.year)) {
+      filtered = filtered.filter((item) => item.year === filters.year);
+    }
+
+    if (Array.isArray(filters.tags) && filters.tags.length > 0) {
+      const wanted = new Set(filters.tags.map((tag) => tag.toLowerCase()));
+      filtered = filtered.filter((item) =>
+        (item.tags || []).some((tag) => wanted.has(tag.toLowerCase()))
+      );
+    }
+
+    if (Array.isArray(filters.genres) && filters.genres.length > 0) {
+      const wantedGenres = new Set(filters.genres.map((genre) => genre.toLowerCase()));
+      filtered = filtered.filter((item) =>
+        (item.genres || []).some((genre) => wantedGenres.has(genre.toLowerCase()))
+      );
+    }
+
+    return filtered;
+  },
+
+  getUserTagNames: async (): Promise<string[]> => {
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) return [];
+
+    const { data, error } = await supabase
+      .from('user_tag_names')
+      .select('name')
+      .eq('user_id', session.user.id)
+      .order('name', { ascending: true });
+    if (error) throw error;
+    return (data || [])
+      .map((row: any) => row?.name)
+      .filter((name: any) => typeof name === 'string' && name.toLowerCase() !== FAVORITES_TAG);
+  },
+
+  setItemTags: async (userItemId: number, tagNames: string[]) => {
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) throw new Error('Not authenticated');
+
+    const cleaned = [...new Set(
+      tagNames
+        .map((tag) => tag?.trim())
+        .filter((tag): tag is string => Boolean(tag))
+    )];
+
+    const { data: ownerRow, error: ownerError } = await supabase
+      .from('user_items')
+      .select('id')
+      .eq('id', userItemId)
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+    if (ownerError) throw ownerError;
+    if (!ownerRow) throw new Error('Item not found');
+
+    const { error: deleteError } = await supabase
+      .from('user_item_tags')
+      .delete()
+      .eq('user_item_id', userItemId);
+    if (deleteError) throw deleteError;
+
+    if (cleaned.length === 0) return { success: true };
+
+    const tagRows = cleaned.map((name) => ({ user_id: session.user.id, name }));
+    const { error: upsertTagsError } = await supabase
+      .from('user_tag_names')
+      .upsert(tagRows, { onConflict: 'user_id,name' });
+    if (upsertTagsError) throw upsertTagsError;
+
+    const { data: tagData, error: tagLookupError } = await supabase
+      .from('user_tag_names')
+      .select('id,name')
+      .eq('user_id', session.user.id)
+      .in('name', cleaned);
+    if (tagLookupError) throw tagLookupError;
+
+    const links = (tagData || []).map((row: any) => ({
+      user_item_id: userItemId,
+      tag_id: row.id,
+    }));
+    if (links.length > 0) {
+      const { error: insertLinksError } = await supabase
+        .from('user_item_tags')
+        .insert(links);
+      if (insertLinksError) throw insertLinksError;
+    }
+    return { success: true };
+  },
+
+  setFavoriteTag: async (userItemId: number, isFavorite: boolean, currentTags: string[] = []) => {
+    const nextWithoutFavorite = currentTags.filter(
+      (tag) => tag.toLowerCase() !== FAVORITES_TAG
+    );
+    const nextTags = isFavorite
+      ? [...nextWithoutFavorite, FAVORITES_TAG]
+      : nextWithoutFavorite;
+    return api.setItemTags(userItemId, nextTags);
   },
   
   updateLibraryItem: async (workId: string | number, updates: Partial<LibraryItem>) => {
@@ -213,6 +416,19 @@ export const api = {
     return { success: true }
   },
 
+  removeLibraryItem: async (workId: string | number) => {
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('user_items')
+      .delete()
+      .eq('work_id', workId)
+      .eq('user_id', session.user.id);
+    if (error) throw error;
+    return { success: true };
+  },
+
   getLibraryItem: async (workId: string | number) => {
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) return null;
@@ -222,7 +438,13 @@ export const api = {
         .select(`
             *,
             work:works (
-                id, title, year, type, poster_url, overview
+                id, title, year, type, poster_url, overview,
+                work_genres (
+                    genre:genres (name)
+                )
+            ),
+            user_item_tags (
+                tag:user_tag_names (name)
             )
         `)
         .eq('work_id', workId)
@@ -233,6 +455,8 @@ export const api = {
     const work = normalizeJoinedWork(data.work);
     if (!work) return null;
     
+    const genreByWorkId = await getGenresByWorkIds([work.id]);
+
     return {
         id: work.id,
         user_item_id: data.id,
@@ -245,7 +469,17 @@ export const api = {
         rating: data.rating,
         review: data.notes,
         notes: data.notes,
-        user_id: data.user_id
+        user_id: data.user_id,
+        genres: genreByWorkId[String(work.id)] || ((work.work_genres || []) as any[])
+          .map((item: any) => item?.genre?.name)
+          .filter((name: any) => typeof name === 'string'),
+        tags: ((data.user_item_tags || []) as any[])
+          .map((item: any) => item?.tag?.name)
+          .filter((name: any) => typeof name === 'string'),
+        isFavorite: ((data.user_item_tags || []) as any[])
+          .map((item: any) => item?.tag?.name)
+          .filter((name: any) => typeof name === 'string')
+          .some((tag: string) => tag.toLowerCase() === FAVORITES_TAG),
     } as LibraryItem;
   },
 

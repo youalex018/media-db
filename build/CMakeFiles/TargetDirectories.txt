@@ -1,0 +1,3 @@
+C:/Users/alexj/GitHub/media-db/build/CMakeFiles/ratings_stats.dir
+C:/Users/alexj/GitHub/media-db/build/CMakeFiles/edit_cache.dir
+C:/Users/alexj/GitHub/media-db/build/CMakeFiles/rebuild_cache.dir

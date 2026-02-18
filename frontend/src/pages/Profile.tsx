@@ -28,13 +28,21 @@ export function ProfilePage() {
       if (userData) {
           try {
             const statsData = await api.getStats({})
-            setStats(statsData)
+            const library = await api.getLibrary()
+            const rated = library.filter((item: any) => typeof item.rating === 'number' && item.rating > 0)
+            const avg = rated.length > 0
+              ? Math.round(rated.reduce((sum: number, item: any) => sum + item.rating, 0) / rated.length)
+              : 0
+            setStats({
+              ...statsData,
+              average_rating: avg,
+            })
           } catch (e) {
             console.error(e)
             // Fallback: derive basic stats from library if ratings endpoint is unavailable.
             try {
               const library = await api.getLibrary()
-              const rated = library.filter((item: any) => typeof item.rating === 'number')
+              const rated = library.filter((item: any) => typeof item.rating === 'number' && item.rating > 0)
               const total = library.length
               const avg = rated.length > 0
                 ? Math.round(rated.reduce((sum: number, item: any) => sum + item.rating, 0) / rated.length)

@@ -70,12 +70,14 @@ def upsert_source(provider: str, external_id: str, payload: Dict[str, Any]) -> N
 
 def upsert_work(work_payload: Dict[str, Any]) -> Dict[str, Any]:
     supabase = get_supabase_client()
+    # Metadata fields used by the service layer should not be written into works.
+    db_payload = {k: v for k, v in work_payload.items() if k != "genre_names"}
     conflict_field = _work_conflict_field(work_payload)
     result = supabase.table("works").upsert(
-        work_payload, on_conflict=conflict_field
+        db_payload, on_conflict=conflict_field
     ).execute()
     if not result.data:
-        lookup_value = work_payload.get(conflict_field)
+        lookup_value = db_payload.get(conflict_field)
         if lookup_value is None:
             raise ValueError("work_upsert_failed")
         lookup = (
@@ -89,6 +91,33 @@ def upsert_work(work_payload: Dict[str, Any]) -> Dict[str, Any]:
             return lookup.data[0]
         raise ValueError("work_upsert_failed")
     return result.data[0]
+
+
+def sync_work_genres(work_id: int, genre_names: list[str]) -> None:
+    if work_id <= 0:
+        raise ValueError("invalid_work_id")
+    unique_names = sorted({name.strip() for name in genre_names if isinstance(name, str) and name.strip()})
+
+    supabase = get_supabase_client()
+    if not unique_names:
+        supabase.table("work_genres").delete().eq("work_id", work_id).execute()
+        return
+
+    upsert_rows = [{"name": name} for name in unique_names]
+    supabase.table("genres").upsert(upsert_rows, on_conflict="name").execute()
+
+    genre_rows = (
+        supabase.table("genres")
+        .select("id,name")
+        .in_("name", unique_names)
+        .execute()
+    )
+    genre_ids = [row["id"] for row in (genre_rows.data or []) if row.get("id") is not None]
+
+    supabase.table("work_genres").delete().eq("work_id", work_id).execute()
+    if genre_ids:
+        link_rows = [{"work_id": work_id, "genre_id": genre_id} for genre_id in genre_ids]
+        supabase.table("work_genres").insert(link_rows).execute()
 
 
 def upsert_user_item(

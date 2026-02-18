@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api, type LibraryItem } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { ChevronLeft, Loader2, Save } from 'lucide-react'
+import { ChevronLeft, Loader2, Save, Star, Trash2 } from 'lucide-react'
 
 export function ItemDetailPage() {
   const { id } = useParams()
@@ -18,9 +18,10 @@ export function ItemDetailPage() {
   const [saveToast, setSaveToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   
   // Local edit state
-  const [rating, setRating] = useState(0)
+  const [ratingInput, setRatingInput] = useState('')
   const [status, setStatus] = useState('')
   const [review, setReview] = useState('')
+  const [isFavorite, setIsFavorite] = useState(false)
 
   useEffect(() => {
     async function loadItem() {
@@ -29,9 +30,10 @@ export function ItemDetailPage() {
       const data = await api.getLibraryItem(id)
       if (data) {
         setItem(data)
-        setRating(data.rating)
+        setRatingInput(data.rating === 0 ? '' : String(data.rating))
         setStatus(data.status)
         setReview(data.review || '')
+        setIsFavorite(Boolean(data.isFavorite))
       }
       setLoading(false)
     }
@@ -40,10 +42,16 @@ export function ItemDetailPage() {
 
   const handleSave = async () => {
     if (!item) return
+    const normalizedRating = (() => {
+      if (!ratingInput.trim()) return 0
+      const parsed = Number.parseInt(ratingInput, 10)
+      if (Number.isNaN(parsed)) return 0
+      return Math.max(0, Math.min(100, parsed))
+    })()
     setSaving(true)
     try {
       await api.updateLibraryItem(item.id, {
-          rating,
+          rating: normalizedRating,
           status: status as any,
           review
       })
@@ -51,6 +59,47 @@ export function ItemDetailPage() {
       window.setTimeout(() => navigate('/library'), 900)
     } catch (error: any) {
       setSaveToast({ type: 'error', message: error?.message || 'Failed to save changes' })
+      window.setTimeout(() => setSaveToast(null), 1800)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleFavoriteToggle = async () => {
+    if (!item?.user_item_id) return
+    const nextFavorite = !isFavorite
+    const currentTags = item.tags || []
+    const nextTags = nextFavorite
+      ? [...currentTags.filter((tag) => tag.toLowerCase() !== 'favorites'), 'favorites']
+      : currentTags.filter((tag) => tag.toLowerCase() !== 'favorites')
+    setSaving(true)
+    try {
+      await api.setFavoriteTag(item.user_item_id, nextFavorite, currentTags)
+      setIsFavorite(nextFavorite)
+      setItem({ ...item, isFavorite: nextFavorite, tags: nextTags })
+      if (nextFavorite) {
+        setSaveToast({ type: 'success', message: 'Added to favorites' })
+      }
+      window.setTimeout(() => setSaveToast(null), 1500)
+    } catch (error: any) {
+      setSaveToast({ type: 'error', message: error?.message || 'Failed to update favorite tag' })
+      window.setTimeout(() => setSaveToast(null), 1800)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemoveFromLibrary = async () => {
+    if (!item) return
+    const confirmed = window.confirm(`Remove "${item.title}" from your library?`)
+    if (!confirmed) return
+    setSaving(true)
+    try {
+      await api.removeLibraryItem(item.id)
+      setSaveToast({ type: 'success', message: 'Removed from library' })
+      window.setTimeout(() => navigate('/library'), 500)
+    } catch (error: any) {
+      setSaveToast({ type: 'error', message: error?.message || 'Failed to remove item' })
       window.setTimeout(() => setSaveToast(null), 1800)
     } finally {
       setSaving(false)
@@ -75,12 +124,13 @@ export function ItemDetailPage() {
   }
 
   const isBook = item.type === 'book'
+  const visibleTags = (item.tags || []).filter((tag) => tag.toLowerCase() !== 'favorites')
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {saveToast && (
         <div
-          className={`fixed right-4 top-4 z-50 rounded-md px-4 py-2 text-sm shadow-lg ${
+          className={`pointer-events-none fixed bottom-4 right-4 z-50 rounded-md px-4 py-2 text-sm shadow-lg transition-opacity ${
             saveToast.type === 'success'
               ? 'bg-emerald-600 text-white'
               : 'bg-destructive text-destructive-foreground'
@@ -105,11 +155,23 @@ export function ItemDetailPage() {
             <div>
                 <div className="flex items-start justify-between gap-4">
                     <h1 className="text-4xl font-bold tracking-tight">{item.title}</h1>
-                    <Badge variant="secondary" className="text-base px-3 py-1 capitalize">
-                        {item.type}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-base px-3 py-1 capitalize">
+                          {item.type}
+                          {item.genres && item.genres.length > 0 ? ` • ${item.genres.slice(0, 5).join(', ')}` : ''}
+                      </Badge>
+                    </div>
                 </div>
                 <div className="text-xl text-muted-foreground mt-2">{item.year}</div>
+                {visibleTags.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {visibleTags.slice(0, 8).map((tag) => (
+                      <Badge key={`tag-${tag}`} variant="outline">
+                        #{tag}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : null}
             </div>
 
             <Card>
@@ -125,23 +187,25 @@ export function ItemDetailPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     {isBook ? (
-                                        <>
-                                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Read</div>
+                                        <SelectGroup>
+                                            <SelectLabel>Read</SelectLabel>
                                             <SelectItem value="want_to_read">Want to Read</SelectItem>
                                             <SelectItem value="reading">Reading</SelectItem>
                                             <SelectItem value="read">Read</SelectItem>
-                                        </>
+                                        </SelectGroup>
                                     ) : (
-                                        <>
-                                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Watch</div>
+                                        <SelectGroup>
+                                            <SelectLabel>Watch</SelectLabel>
                                             <SelectItem value="want_to_watch">Want to Watch</SelectItem>
                                             <SelectItem value="watching">Watching</SelectItem>
                                             <SelectItem value="watched">Watched</SelectItem>
-                                        </>
+                                        </SelectGroup>
                                     )}
-                                    <div className="my-1 h-px bg-muted" />
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Other</div>
-                                    <SelectItem value="abandoned">Abandoned</SelectItem>
+                                    <SelectSeparator />
+                                    <SelectGroup>
+                                      <SelectLabel>Other</SelectLabel>
+                                      <SelectItem value="abandoned">Abandoned</SelectItem>
+                                    </SelectGroup>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -149,11 +213,20 @@ export function ItemDetailPage() {
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Rating (0-100)</label>
                             <Input 
-                                type="number" 
-                                min="0" 
-                                max="100" 
-                                value={rating} 
-                                onChange={(e) => setRating(Number(e.target.value))} 
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="0-100"
+                                value={ratingInput}
+                                onFocus={(e) => {
+                                  if (e.currentTarget.value === '0') {
+                                    setRatingInput('')
+                                  }
+                                }}
+                                onChange={(e) => {
+                                  const onlyDigits = e.target.value.replace(/\D/g, '').slice(0, 3)
+                                  const normalized = onlyDigits && Number.parseInt(onlyDigits, 10) > 100 ? '100' : onlyDigits
+                                  setRatingInput(normalized)
+                                }}
                             />
                         </div>
                     </div>
@@ -178,6 +251,26 @@ export function ItemDetailPage() {
             </div>
 
             <div className="pt-4 flex justify-end gap-4">
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="h-9 w-9"
+                  aria-label="Remove from library"
+                  onClick={handleRemoveFromLibrary}
+                  disabled={saving}
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  aria-label={isFavorite ? 'Remove favorite' : 'Add favorite'}
+                  onClick={handleFavoriteToggle}
+                  disabled={saving}
+                >
+                    <Star className={`h-4 w-4 ${isFavorite ? 'fill-current text-amber-500' : ''}`} />
+                </Button>
                 <Button variant="outline" onClick={() => navigate('/library')}>Cancel</Button>
                 <Button onClick={handleSave} disabled={saving}>
                     {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

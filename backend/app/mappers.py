@@ -6,6 +6,48 @@ from typing import Any, Dict, Optional
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 OPENLIBRARY_COVER_BASE = "https://covers.openlibrary.org/b"
 
+TMDB_MOVIE_GENRE_MAP = {
+    12: "Adventure",
+    14: "Fantasy",
+    16: "Animation",
+    18: "Drama",
+    27: "Horror",
+    28: "Action",
+    35: "Comedy",
+    36: "History",
+    37: "Western",
+    53: "Thriller",
+    80: "Crime",
+    99: "Documentary",
+    878: "Science Fiction",
+    9648: "Mystery",
+    10402: "Music",
+    10749: "Romance",
+    10751: "Family",
+    10752: "War",
+    10770: "TV Movie",
+}
+
+TMDB_TV_GENRE_MAP = {
+    16: "Animation",
+    18: "Drama",
+    35: "Comedy",
+    37: "Western",
+    80: "Crime",
+    99: "Documentary",
+    9648: "Mystery",
+    10402: "Music",
+    10751: "Family",
+    10759: "Action & Adventure",
+    10762: "Kids",
+    10763: "News",
+    10764: "Reality",
+    10765: "Sci-Fi & Fantasy",
+    10766: "Soap",
+    10767: "Talk",
+    10768: "War & Politics",
+}
+
 
 def _parse_year(value: Optional[str]) -> Optional[int]:
     if not value:
@@ -52,6 +94,7 @@ def normalize_tmdb_search_item(item: Dict[str, Any]) -> Optional[Dict[str, Any]]
         "type": "movie" if media_type == "movie" else "show",
         "title": title,
         "year": year,
+        "genre_names": _tmdb_search_genre_names(item, media_type),
         "overview": item.get("overview"),
         "poster_url": _tmdb_poster_url(item.get("poster_path")),
         "language_code": item.get("original_language"),
@@ -86,7 +129,44 @@ def map_tmdb_payload_to_work(payload: Dict[str, Any], source_type: str) -> Dict[
         "language_code": payload.get("original_language"),
         "runtime_minutes": runtime,
         "tmdb_id": payload.get("id"),
+        # Keep genre names alongside canonical work fields so the caller can sync work_genres.
+        "genre_names": _extract_tmdb_genre_names(payload),
     }
+
+
+def _extract_tmdb_genre_names(payload: Dict[str, Any]) -> list[str]:
+    raw_genres = payload.get("genres") or []
+    if not isinstance(raw_genres, list):
+        return []
+
+    names: list[str] = []
+    for item in raw_genres:
+        if isinstance(item, dict):
+            name = item.get("name")
+        elif isinstance(item, str):
+            name = item
+        else:
+            name = None
+        if isinstance(name, str):
+            normalized = name.strip()
+            if normalized:
+                names.append(normalized)
+    return names
+
+
+def _tmdb_search_genre_names(item: Dict[str, Any], media_type: str) -> list[str]:
+    genre_ids = item.get("genre_ids") or []
+    if not isinstance(genre_ids, list):
+        return []
+    genre_map = TMDB_MOVIE_GENRE_MAP if media_type == "movie" else TMDB_TV_GENRE_MAP
+    names: list[str] = []
+    for genre_id in genre_ids:
+        if not isinstance(genre_id, int):
+            continue
+        name = genre_map.get(genre_id)
+        if name and name not in names:
+            names.append(name)
+    return names
 
 
 def normalize_openlibrary_search_doc(doc: Dict[str, Any]) -> Optional[Dict[str, Any]]:

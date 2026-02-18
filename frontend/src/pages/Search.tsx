@@ -27,8 +27,21 @@ export function SearchPage() {
   const [results, setResults] = useState<Work[]>([])
   const [loading, setLoading] = useState(false)
   const [addedIds, setAddedIds] = useState<Set<string | number>>(new Set())
+  const [existingSourceKeys, setExistingSourceKeys] = useState<Set<string>>(new Set())
   
   const debouncedQuery = useDebounce(query, 500)
+
+  useEffect(() => {
+    async function loadExistingLibrarySources() {
+      try {
+        const keys = await api.getLibrarySourceKeys()
+        setExistingSourceKeys(keys)
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    loadExistingLibrarySources()
+  }, [])
 
   useEffect(() => {
     async function doSearch() {
@@ -53,12 +66,26 @@ export function SearchPage() {
   const [addingId, setAddingId] = useState<string | number | null>(null)
   const isHero = !query.trim() && results.length === 0 && !loading
 
+  const getSourceKey = (work: Work): string | null => {
+    const provider = work.source?.provider
+    const externalId = work.source?.external_id
+    if (!provider || !externalId) return null
+    return `${provider}:${externalId}`
+  }
+
   const handleAdd = async (work: Work) => {
+    const sourceKey = getSourceKey(work)
+    if (sourceKey && existingSourceKeys.has(sourceKey)) {
+      return
+    }
     setAddError(null)
     setAddingId(work.id)
     try {
         await api.addToLibrary(work)
         setAddedIds(prev => new Set(prev).add(work.id))
+        if (sourceKey) {
+          setExistingSourceKeys((prev) => new Set(prev).add(sourceKey))
+        }
     } catch (e: any) {
         console.error('Failed to add to library:', e)
         setAddError(e.message || 'Failed to add item')
@@ -66,6 +93,9 @@ export function SearchPage() {
         setAddingId(null)
     }
   }
+
+  const formatTypeLabel = (value: WorkType) =>
+    value === 'show' ? 'Show' : value.charAt(0).toUpperCase() + value.slice(1)
 
   return (
     <div className="space-y-6">
@@ -132,9 +162,12 @@ export function SearchPage() {
             <CardHeader className="p-4">
               <div className="flex justify-between items-start gap-2">
                 <CardTitle className="text-lg leading-tight">{work.title}</CardTitle>
-                <Badge variant="secondary" className="shrink-0">{work.type}</Badge>
+                <Badge variant="secondary" className="shrink-0">{formatTypeLabel(work.type)}</Badge>
               </div>
-              <div className="text-sm text-muted-foreground">{work.year}</div>
+              <div className="text-sm text-muted-foreground">
+                {work.year}
+                {work.genres && work.genres.length > 0 ? ` • ${work.genres.slice(0, 2).join(', ')}` : ''}
+              </div>
             </CardHeader>
             <CardContent className="p-4 pt-0 flex-1">
               <p className="text-sm text-muted-foreground line-clamp-3">
@@ -142,19 +175,25 @@ export function SearchPage() {
               </p>
             </CardContent>
             <CardFooter className="p-4 pt-0">
+              {(() => {
+                const sourceKey = getSourceKey(work)
+                const alreadyInLibrary = Boolean(sourceKey && existingSourceKeys.has(sourceKey))
+                const justAdded = addedIds.has(work.id)
+                const isDisabled = alreadyInLibrary || justAdded || addingId === work.id
+                return (
               <Button 
                 className="w-full" 
-                variant={addedIds.has(work.id) ? "secondary" : "default"}
+                variant={alreadyInLibrary || justAdded ? "secondary" : "default"}
                 onClick={() => handleAdd(work)}
-                disabled={addedIds.has(work.id) || addingId === work.id}
+                disabled={isDisabled}
               >
                 {addingId === work.id ? (
                     <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Adding...
                     </>
-                ) : addedIds.has(work.id) ? (
+                ) : alreadyInLibrary || justAdded ? (
                     <>
-                        <Check className="mr-2 h-4 w-4" /> Added
+                        <Check className="mr-2 h-4 w-4" /> In Library
                     </>
                 ) : (
                     <>
@@ -162,6 +201,8 @@ export function SearchPage() {
                     </>
                 )}
               </Button>
+                )
+              })()}
             </CardFooter>
           </Card>
         ))}

@@ -15,7 +15,13 @@ from .external_sources import (
     tmdb_detail,
     tmdb_search,
 )
-from .library_service import get_cached_source, upsert_source, upsert_user_item, upsert_work
+from .library_service import (
+    get_cached_source,
+    sync_work_genres,
+    upsert_source,
+    upsert_user_item,
+    upsert_work,
+)
 from .mappers import (
     map_openlibrary_payload_to_work,
     map_tmdb_payload_to_work,
@@ -154,7 +160,14 @@ async def add_to_library(request: Request, user=Depends(get_current_user)):
     try:
         if provider == 'tmdb':
             normalized_type = 'movie' if source_type == 'movie' else 'show'
-            if not payload:
+            # Search payloads cached from /search may not include full genre objects.
+            # Ensure detail payload is used so genre_names can be extracted reliably.
+            needs_detail = (
+                not payload
+                or not isinstance(payload, dict)
+                or not isinstance(payload.get("genres"), list)
+            )
+            if needs_detail:
                 payload = tmdb_detail(int(external_id), normalized_type)
                 upsert_source('tmdb', str(external_id), payload)
             work_payload = map_tmdb_payload_to_work(payload, normalized_type)
@@ -185,6 +198,9 @@ async def add_to_library(request: Request, user=Depends(get_current_user)):
 
     try:
         work = upsert_work(work_payload)
+        if "genre_names" in work_payload:
+            genre_names = work_payload.get("genre_names") or []
+            sync_work_genres(work["id"], genre_names)
         user_item = upsert_user_item(
             user_id=user['user_id'],
             work_id=work['id'],

@@ -15,6 +15,7 @@ from .external_sources import (
     tmdb_detail,
     tmdb_search,
 )
+from .embeddings import backfill_embeddings, circuit_breaker_status, compute_work_embedding
 from .library_service import (
     get_cached_source,
     sync_work_genres,
@@ -28,6 +29,7 @@ from .mappers import (
     normalize_openlibrary_search_doc,
     normalize_tmdb_search_item,
 )
+from .recommendations import recommend_for_seed, tonight_picks
 
 router = APIRouter()
 RATINGS_STATS_TIMEOUT_SECONDS = 2
@@ -325,6 +327,150 @@ async def ratings_stats(request: Request, _user=Depends(get_current_user)):
             detail={'error': 'ratings_stats_invalid_output'},
         )
     return {'stats': stats}
+
+
+@router.get('/recommendations')
+async def get_recommendations(request: Request, user=Depends(get_current_user)):
+    """Get recommendations seeded by a specific work."""
+    seed = request.query_params.get('seed')
+    if not seed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={'error': 'Query parameter "seed" (work_id) is required'},
+        )
+
+    try:
+        seed_id = int(seed)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={'error': 'seed must be a valid integer work_id'},
+        )
+
+    limit = min(int(request.query_params.get('limit', '10')), 30)
+    mode = request.query_params.get('mode', 'hybrid')
+    if mode not in ('hybrid', 'vector', 'heuristic'):
+        mode = 'hybrid'
+
+    exclude_raw = request.query_params.get('exclude', '')
+    exclude_ids = []
+    if exclude_raw:
+        for part in exclude_raw.split(','):
+            part = part.strip()
+            if part.isdigit():
+                exclude_ids.append(int(part))
+
+    include_ids = None
+    library_only = request.query_params.get('library_only', '').lower() in ('true', '1')
+    if library_only:
+        supabase = get_supabase_client()
+        user_items = (
+            supabase.table("user_items")
+            .select("work_id")
+            .eq("user_id", user['user_id'])
+            .execute()
+        )
+        include_ids = [row["work_id"] for row in (user_items.data or [])]
+
+    try:
+        results = recommend_for_seed(
+            seed_work_id=seed_id,
+            limit=limit,
+            exclude_ids=exclude_ids or None,
+            include_ids=include_ids,
+            mode=mode,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={'error': 'recommendation_failed', 'details': str(exc)[:200]},
+        )
+
+    return {
+        'seed_work_id': seed_id,
+        'mode': mode,
+        'results': results,
+        'circuit_breaker': circuit_breaker_status(),
+    }
+
+
+@router.get('/recommendations/tonight')
+async def get_tonight_picks(request: Request, user=Depends(get_current_user)):
+    """Personalised "Tonight" recommendations based on user taste profile."""
+    limit = min(int(request.query_params.get('limit', '5')), 20)
+    max_duration = request.query_params.get('max_duration')
+    language = request.query_params.get('language')
+    work_type = request.query_params.get('type')
+
+    if max_duration:
+        try:
+            max_duration = int(max_duration)
+        except (ValueError, TypeError):
+            max_duration = None
+
+    if work_type and work_type not in ('movie', 'show', 'book'):
+        work_type = None
+
+    try:
+        results = tonight_picks(
+            user_id=user['user_id'],
+            limit=limit,
+            max_duration=max_duration,
+            language=language,
+            work_type=work_type,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={'error': 'tonight_picks_failed', 'details': str(exc)[:200]},
+        )
+
+    return {
+        'results': results,
+        'filters': {
+            'max_duration': max_duration,
+            'language': language,
+            'type': work_type,
+        },
+        'circuit_breaker': circuit_breaker_status(),
+    }
+
+
+@router.post('/embeddings/backfill')
+async def trigger_backfill(request: Request, user=Depends(get_current_user)):
+    """Trigger embedding backfill for works missing embeddings."""
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    batch_size = min(int(body.get('batch_size', 50)), 200)
+
+    try:
+        result = backfill_embeddings(batch_size=batch_size)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={'error': 'backfill_failed', 'details': str(exc)[:200]},
+        )
+
+    return {
+        'result': result,
+        'circuit_breaker': circuit_breaker_status(),
+    }
+
+
+@router.post('/embeddings/compute/{work_id}')
+async def trigger_compute_embedding(work_id: int, _user=Depends(get_current_user)):
+    """Compute embedding for a single work."""
+    success = compute_work_embedding(work_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={'error': 'embedding_computation_failed', 'work_id': work_id},
+        )
+    return {'success': True, 'work_id': work_id}
 
 
 @router.get('/library')

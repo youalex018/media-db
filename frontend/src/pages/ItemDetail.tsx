@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { api, type LibraryItem } from '@/lib/api'
+import { api, type LibraryItem, type Recommendation } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { ChevronLeft, Loader2, Save, Star, Trash2 } from 'lucide-react'
+import { ChevronLeft, Loader2, Save, Star, Trash2, Sparkles, Info } from 'lucide-react'
 
 export function ItemDetailPage() {
   const { id } = useParams()
@@ -23,10 +23,15 @@ export function ItemDetailPage() {
   const [review, setReview] = useState('')
   const [isFavorite, setIsFavorite] = useState(false)
 
+  // Similar items
+  const [similar, setSimilar] = useState<Recommendation[]>([])
+  const [similarLoading, setSimilarLoading] = useState(false)
+
   useEffect(() => {
     async function loadItem() {
       if (!id) return
       setLoading(true)
+      setSimilar([])
       const data = await api.getLibraryItem(id)
       if (data) {
         setItem(data)
@@ -34,6 +39,12 @@ export function ItemDetailPage() {
         setStatus(data.status)
         setReview(data.review || '')
         setIsFavorite(Boolean(data.isFavorite))
+
+        setSimilarLoading(true)
+        api.getRecommendations(Number(data.id), 6, 'hybrid', true)
+          .then(setSimilar)
+          .catch(() => {})
+          .finally(() => setSimilarLoading(false))
       }
       setLoading(false)
     }
@@ -278,6 +289,67 @@ export function ItemDetailPage() {
                 </Button>
             </div>
         </div>
+      </div>
+
+      {/* Similar Items */}
+      <div className="space-y-4 pt-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-primary" />
+          <h2 className="text-xl font-semibold">Similar Items In Your Library</h2>
+        </div>
+
+        {similarLoading ? (
+          <div className="flex justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : similar.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {similar.map((rec) => {
+              const w = rec.work
+              if (!w) return null
+              return (
+                <Card
+                  key={rec.work_id}
+                  className="group cursor-pointer hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
+                  onClick={() => navigate(`/library/${rec.work_id}`)}
+                >
+                  <div className="flex gap-3 p-3">
+                    <div className="w-14 h-20 flex-shrink-0 rounded overflow-hidden bg-muted">
+                      {w.poster_url ? (
+                        <img src={w.poster_url} alt={w.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]">
+                          No poster
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <h4 className="font-medium text-sm leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+                        {w.title}
+                      </h4>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 capitalize">{w.type}</Badge>
+                        {w.year && <span className="text-[10px] text-muted-foreground">{w.year}</span>}
+                      </div>
+                      {rec.reasons.length > 0 && (
+                        <div className="flex items-start gap-1">
+                          <Info className="h-2.5 w-2.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                          <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2">
+                            {rec.reasons[0]}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground py-4">
+            No similar items found yet. As your library grows, recommendations will improve.
+          </p>
+        )}
       </div>
     </div>
   )

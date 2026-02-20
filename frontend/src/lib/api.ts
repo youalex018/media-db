@@ -45,6 +45,37 @@ export interface LibraryFilters {
   minRating?: number;
 }
 
+export interface Recommendation {
+  work_id: number;
+  score: number;
+  vector_similarity: number | null;
+  genre_jaccard: number | null;
+  people_overlap: number | null;
+  shared_genres: string[];
+  shared_people: string[];
+  reasons: string[];
+  engine: 'hybrid' | 'vector' | 'heuristic';
+  work: {
+    id: number;
+    type: string;
+    title: string;
+    year: number | null;
+    overview: string | null;
+    poster_url: string | null;
+    language_code: string | null;
+    runtime_minutes: number | null;
+    pages: number | null;
+    genres?: string[];
+  };
+}
+
+export interface TonightFilters {
+  max_duration?: number;
+  language?: string;
+  type?: string;
+  limit?: number;
+}
+
 const FAVORITES_TAG = 'favorites';
 
 function normalizeJoinedWork(rawWork: any): any | null {
@@ -487,14 +518,8 @@ export const api = {
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) throw new Error('Not authenticated');
     
-    // If jsonData is provided, we send it (for the manual paste feature)
-    // If not, we might want to fetch library items first? 
-    // The previous mock implementation calculated from library if empty.
-    // The backend endpoint requires a list of items.
-    
     let payload = jsonData;
     
-    // If no valid manual input array, calculate from the user's library.
     if (!Array.isArray(payload) || payload.length === 0) {
          const items = await api.getLibrary();
          payload = items
@@ -520,7 +545,6 @@ export const api = {
     }
     
     const data = await res.json();
-    // Backend returns { stats: { ... } } where stats matches C++ output
     const s = data.stats;
     return {
         average_rating: Math.round(s.overall?.average_rating || 0),
@@ -531,5 +555,58 @@ export const api = {
             book: s.types?.book?.count || 0
         }
     }; 
-  }
+  },
+
+  getRecommendations: async (seedWorkId: number, limit: number = 10, mode: string = 'hybrid', libraryOnly: boolean = false): Promise<Recommendation[]> => {
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) throw new Error('Not authenticated');
+
+    const params = new URLSearchParams({
+      seed: String(seedWorkId),
+      limit: String(limit),
+      mode,
+    });
+    if (libraryOnly) {
+      params.set('library_only', 'true');
+    }
+
+    const res = await fetch(`/api/recommendations?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail?.error || 'Failed to get recommendations');
+    }
+
+    const data = await res.json();
+    return (data.results || []) as Recommendation[];
+  },
+
+  getTonightPicks: async (filters: TonightFilters = {}): Promise<Recommendation[]> => {
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) throw new Error('Not authenticated');
+
+    const params = new URLSearchParams();
+    if (filters.limit) params.set('limit', String(filters.limit));
+    if (filters.max_duration) params.set('max_duration', String(filters.max_duration));
+    if (filters.language) params.set('language', filters.language);
+    if (filters.type) params.set('type', filters.type);
+
+    const res = await fetch(`/api/recommendations/tonight?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail?.error || 'Failed to get tonight picks');
+    }
+
+    const data = await res.json();
+    return (data.results || []) as Recommendation[];
+  },
 }

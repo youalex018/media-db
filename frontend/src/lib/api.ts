@@ -514,47 +514,39 @@ export const api = {
     } as LibraryItem;
   },
 
-  getStats: async (jsonData: any) => {
+  getProfileStats: async () => {
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) throw new Error('Not authenticated');
-    
-    let payload = jsonData;
-    
-    if (!Array.isArray(payload) || payload.length === 0) {
-         const items = await api.getLibrary();
-         payload = items
-           .filter((i: any) => typeof i.rating === 'number' && !Number.isNaN(i.rating))
-           .map((i: any) => ({
-             type: i.type,
-             rating: i.rating
-           }));
-    }
 
-    const res = await fetch('/api/ratings/stats', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify(payload)
+    const res = await fetch('/api/profile/stats', {
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
     });
-    
+
     if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.detail?.error || 'Failed to calculate stats');
+        throw new Error(err.detail?.error || 'Failed to load stats');
     }
-    
+
     const data = await res.json();
-    const s = data.stats;
-    return {
-        average_rating: Math.round(s.overall?.average_rating || 0),
-        total_items: s.overall?.count || 0,
-        by_type: {
-            movie: s.types?.movie?.count || 0,
-            show: s.types?.show?.count || 0,
-            book: s.types?.book?.count || 0
-        }
-    }; 
+    return data.stats;
+  },
+
+  getInsights: async (): Promise<string> => {
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) throw new Error('Not authenticated');
+
+    const res = await fetch('/api/profile/insights', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+    });
+
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail?.error || 'Failed to generate insights');
+    }
+
+    const data = await res.json();
+    return data.insights;
   },
 
   getRecommendations: async (seedWorkId: number, limit: number = 10, mode: string = 'hybrid', libraryOnly: boolean = false): Promise<Recommendation[]> => {

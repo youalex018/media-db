@@ -7,7 +7,6 @@ import { AuthPage } from '@/pages/Auth'
 import { SearchPage } from '@/pages/Search'
 import { LibraryPage } from '@/pages/Library'
 import { ProfilePage } from '@/pages/Profile'
-import { StatsPage } from '@/pages/Stats'
 import { ItemDetailPage } from '@/pages/ItemDetail'
 import { DiscoverPage } from '@/pages/Discover'
 
@@ -56,7 +55,6 @@ function App() {
                 <Route path="/library" element={<LibraryPage />} />
                 <Route path="/library/:id" element={<ItemDetailPage />} />
                 <Route path="/discover" element={<DiscoverPage />} />
-                <Route path="/stats" element={<StatsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="*" element={<Navigate to="/search" replace />} />
             </Route>

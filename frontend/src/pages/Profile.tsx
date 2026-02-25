@@ -3,63 +3,50 @@ import { api, supabase } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Mail, User as UserIcon, Calendar, Database } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Loader2, Mail, User as UserIcon, Calendar, Database, Sparkles, Film, Tv, BookOpen } from 'lucide-react'
+
+interface ProfileStats {
+  types: Record<string, { count: number; rated_count: number; average_rating: number }>
+  statuses: Record<string, number>
+  top_genres: Array<{ name: string; count: number }>
+  overall: {
+    count: number
+    rated_count: number
+    average_rating: number
+    highest_rating: number
+    highest_rated: string
+  }
+}
 
 export function ProfilePage() {
   const [user, setUser] = useState<any>(null)
-  const [stats, setStats] = useState<any>(null)
+  const [stats, setStats] = useState<ProfileStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [insights, setInsights] = useState<string | null>(null)
+  const [insightsLoading, setInsightsLoading] = useState(false)
+  const [insightsError, setInsightsError] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadData() {
       setLoading(true)
-      
-      // 1. Get User
-      let userData = null;
+
+      let userData = null
       if (localStorage.getItem('sb-fake-session')) {
-          userData = { email: 'dev@example.com', id: 'dev-user-123', created_at: new Date().toISOString() }
+        userData = { email: 'dev@example.com', id: 'dev-user-123', created_at: new Date().toISOString() }
       } else {
-          const { data } = await supabase.auth.getUser()
-          userData = data.user
+        const { data } = await supabase.auth.getUser()
+        userData = data.user
       }
       setUser(userData)
 
-      // 2. Get Stats
       if (userData) {
-          try {
-            const statsData = await api.getStats({})
-            const library = await api.getLibrary()
-            const rated = library.filter((item: any) => typeof item.rating === 'number' && item.rating > 0)
-            const avg = rated.length > 0
-              ? Math.round(rated.reduce((sum: number, item: any) => sum + item.rating, 0) / rated.length)
-              : 0
-            setStats({
-              ...statsData,
-              average_rating: avg,
-            })
-          } catch (e) {
-            console.error(e)
-            // Fallback: derive basic stats from library if ratings endpoint is unavailable.
-            try {
-              const library = await api.getLibrary()
-              const rated = library.filter((item: any) => typeof item.rating === 'number' && item.rating > 0)
-              const total = library.length
-              const avg = rated.length > 0
-                ? Math.round(rated.reduce((sum: number, item: any) => sum + item.rating, 0) / rated.length)
-                : 0
-              setStats({
-                average_rating: avg,
-                total_items: total,
-                by_type: {
-                  movie: library.filter((item: any) => item.type === 'movie').length,
-                  show: library.filter((item: any) => item.type === 'show').length,
-                  book: library.filter((item: any) => item.type === 'book').length,
-                },
-              })
-            } catch (fallbackError) {
-              console.error(fallbackError)
-            }
-          }
+        try {
+          const statsData = await api.getProfileStats()
+          setStats(statsData)
+        } catch (e) {
+          console.error('Failed to load stats:', e)
+        }
       }
 
       setLoading(false)
@@ -67,15 +54,33 @@ export function ProfilePage() {
     loadData()
   }, [])
 
+  const handleGenerateInsights = async () => {
+    setInsightsLoading(true)
+    setInsightsError(null)
+    try {
+      const text = await api.getInsights()
+      setInsights(text)
+    } catch (e: any) {
+      setInsightsError(e?.message || 'Failed to generate insights')
+    } finally {
+      setInsightsLoading(false)
+    }
+  }
+
   if (loading) {
-      return (
-          <div className="flex justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-      )
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   if (!user) return <div>Dev Mode - Please log in</div>
+
+  const movieCount = stats?.types?.movie?.count || 0
+  const showCount = stats?.types?.show?.count || 0
+  const bookCount = stats?.types?.book?.count || 0
+  const totalCount = stats?.overall?.count || 0
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -84,107 +89,189 @@ export function ProfilePage() {
       <div className="grid gap-6 md:grid-cols-[1fr_2fr]">
         {/* User Card */}
         <Card>
-            <CardHeader>
-                <div className="flex items-center gap-4">
-<Avatar className="h-16 w-16">
-    <AvatarImage src="" />
-    <AvatarFallback className="text-2xl font-bold bg-primary/10 text-primary">
-        {user.email?.[0].toUpperCase()}
-    </AvatarFallback>
-</Avatar>
-                    <div>
-                        <CardTitle className="text-xl">User Account</CardTitle>
-                        <CardDescription>Personal details</CardDescription>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="flex items-center gap-3 text-sm">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{user.email}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                    <UserIcon className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-mono text-xs text-muted-foreground">{user.id}</span>
-                </div>
-                 <div className="flex items-center gap-3 text-sm">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">Joined: {new Date(user.created_at || Date.now()).toLocaleDateString()}</span>
-                </div>
-                
-                <div className="pt-4">
-                    <Badge variant="outline" className="font-mono">
-                        {localStorage.getItem('sb-fake-session') ? 'DEV MODE' : 'AUTHENTICATED'}
-                    </Badge>
-                </div>
-            </CardContent>
+          <CardHeader>
+            <div className="flex items-center gap-4">
+              <Avatar className="h-16 w-16">
+                <AvatarImage src="" />
+                <AvatarFallback className="text-2xl font-bold bg-primary/10 text-primary">
+                  {user.email?.[0].toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <CardTitle className="text-xl">User Account</CardTitle>
+                <CardDescription>Personal details</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3 text-sm">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <span>{user.email}</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm">
+              <UserIcon className="h-4 w-4 text-muted-foreground" />
+              <span className="font-mono text-xs text-muted-foreground">{user.id}</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">
+                Joined: {new Date(user.created_at || Date.now()).toLocaleDateString()}
+              </span>
+            </div>
+            <div className="pt-4">
+              <Badge variant="outline" className="font-mono">
+                {localStorage.getItem('sb-fake-session') ? 'DEV MODE' : 'AUTHENTICATED'}
+              </Badge>
+            </div>
+          </CardContent>
         </Card>
 
         {/* Stats Card */}
         <Card>
-            <CardHeader>
-                <div className="flex items-center gap-4">
-                    <div className="p-2 bg-secondary rounded-lg">
-                        <Database className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                        <CardTitle>Library Statistics</CardTitle>
-                        <CardDescription>Your collection overview</CardDescription>
-                    </div>
+          <CardHeader>
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-secondary rounded-lg">
+                <Database className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <CardTitle>Library Statistics</CardTitle>
+                <CardDescription>Your collection overview</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {stats ? (
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <span className="text-sm font-medium text-muted-foreground">Total Items</span>
+                  <div className="text-3xl font-bold">{totalCount}</div>
                 </div>
-            </CardHeader>
-            <CardContent>
-                {stats ? (
-                    <div className="grid gap-6 sm:grid-cols-2">
-                        <div className="space-y-1">
-                            <span className="text-sm font-medium text-muted-foreground">Total Items</span>
-                            <div className="text-3xl font-bold">{stats.total_items}</div>
-                        </div>
-                        <div className="space-y-1">
-                            <span className="text-sm font-medium text-muted-foreground">Average Rating</span>
-                            <div className="text-3xl font-bold">{stats.average_rating} <span className="text-base font-normal text-muted-foreground">/ 100</span></div>
-                        </div>
-                        
-                        <div className="col-span-full pt-4 space-y-3">
-                            <h4 className="text-sm font-semibold mb-2">Breakdown</h4>
-                            
-                            <div className="space-y-1">
-                                <div className="flex justify-between text-sm">
-                                    <span>Movies</span>
-                                    <span className="font-medium">{stats.by_type.movie}</span>
-                                </div>
-                                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                                    <div className="h-full bg-blue-500" style={{ width: `${(stats.by_type.movie / Math.max(stats.total_items, 1)) * 100}%` }} />
-                                </div>
-                            </div>
+                <div className="space-y-1">
+                  <span className="text-sm font-medium text-muted-foreground">Average Rating</span>
+                  <div className="text-3xl font-bold">
+                    {Math.round(stats.overall?.average_rating || 0)}
+                    <span className="text-base font-normal text-muted-foreground"> / 100</span>
+                  </div>
+                </div>
 
-                            <div className="space-y-1">
-                                <div className="flex justify-between text-sm">
-                                    <span>TV Shows</span>
-                                    <span className="font-medium">{stats.by_type.show}</span>
-                                </div>
-                                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                                    <div className="h-full bg-green-500" style={{ width: `${(stats.by_type.show / Math.max(stats.total_items, 1)) * 100}%` }} />
-                                </div>
-                            </div>
-
-                            <div className="space-y-1">
-                                <div className="flex justify-between text-sm">
-                                    <span>Books</span>
-                                    <span className="font-medium">{stats.by_type.book}</span>
-                                </div>
-                                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                                    <div className="h-full bg-amber-500" style={{ width: `${(stats.by_type.book / Math.max(stats.total_items, 1)) * 100}%` }} />
-                                </div>
-                            </div>
-                        </div>
+                {stats.overall?.highest_rated && (
+                  <div className="col-span-full space-y-1">
+                    <span className="text-sm font-medium text-muted-foreground">Highest Rated</span>
+                    <div className="text-lg font-semibold">
+                      {stats.overall.highest_rated}
+                      <span className="text-sm font-normal text-muted-foreground ml-2">
+                        ({stats.overall.highest_rating}/100)
+                      </span>
                     </div>
-                ) : (
-                    <div>No stats available</div>
+                  </div>
                 )}
-            </CardContent>
+
+                <div className="col-span-full pt-4 space-y-3">
+                  <h4 className="text-sm font-semibold mb-2">By Type</h4>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="flex items-center gap-1.5"><Film className="h-3.5 w-3.5" /> Movies</span>
+                      <span className="font-medium">{movieCount}</span>
+                    </div>
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500" style={{ width: `${(movieCount / Math.max(totalCount, 1)) * 100}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="flex items-center gap-1.5"><Tv className="h-3.5 w-3.5" /> TV Shows</span>
+                      <span className="font-medium">{showCount}</span>
+                    </div>
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full bg-green-500" style={{ width: `${(showCount / Math.max(totalCount, 1)) * 100}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5" /> Books</span>
+                      <span className="font-medium">{bookCount}</span>
+                    </div>
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full bg-amber-500" style={{ width: `${(bookCount / Math.max(totalCount, 1)) * 100}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-muted-foreground text-sm">No stats available</div>
+            )}
+          </CardContent>
         </Card>
       </div>
+
+      {/* Top Genres */}
+      {stats && stats.top_genres && stats.top_genres.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Top Genres</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {stats.top_genres.map((g) => (
+                <Badge key={g.name} variant="secondary" className="text-sm px-3 py-1">
+                  {g.name} <span className="ml-1.5 text-muted-foreground">({g.count})</span>
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* AI Insights */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-500/10 rounded-lg">
+                <Sparkles className="h-5 w-5 text-purple-500" />
+              </div>
+              <div>
+                <CardTitle>AI Taste Profile</CardTitle>
+                <CardDescription>Gemini-powered analysis of your media habits</CardDescription>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGenerateInsights}
+              disabled={insightsLoading}
+            >
+              {insightsLoading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              {insights ? 'Regenerate' : 'Generate'}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {insightsLoading ? (
+            <div className="flex items-center gap-3 py-6 justify-center text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">Analyzing your library...</span>
+            </div>
+          ) : insightsError ? (
+            <p className="text-sm text-destructive">{insightsError}</p>
+          ) : insights ? (
+            <div className="prose prose-sm dark:prose-invert max-w-none">
+              {insights.split('\n\n').map((paragraph, i) => (
+                <p key={i} className="text-sm leading-relaxed text-muted-foreground">
+                  {paragraph}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              Click Generate to get a personalized analysis of your media tastes and habits.
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

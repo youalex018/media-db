@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Search, Library, BarChart2, User, LogOut, Menu, X, Sparkles } from 'lucide-react';
+import { Search, Library, User, LogOut, Menu, X, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/lib/api';
@@ -58,7 +58,6 @@ export function Layout() {
             <NavItem to="/search" icon={Search} label="Search" />
             <NavItem to="/library" icon={Library} label="Library" />
             <NavItem to="/discover" icon={Sparkles} label="Discover" />
-            <NavItem to="/stats" icon={BarChart2} label="Ratings Stats" />
           </nav>
 
           <Separator className="my-4" />

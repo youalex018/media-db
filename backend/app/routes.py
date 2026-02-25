@@ -222,7 +222,7 @@ async def add_to_library(request: Request, user=Depends(get_current_user)):
     }
 
 
-def _ratings_stats_binary_path() -> Path:
+def _stats_binary_path() -> Path:
     env_path = os.getenv("RATINGS_STATS_BIN")
     if env_path:
         return Path(env_path)
@@ -240,67 +240,71 @@ def _ratings_stats_binary_path() -> Path:
     return candidates[0]
 
 
-def _ratings_stats_command(binary_path: Path) -> list[str]:
+def _stats_command(binary_path: Path) -> list[str]:
     if binary_path.suffix.lower() == ".py":
         return [sys.executable, str(binary_path)]
     return [str(binary_path)]
 
 
-def _validate_ratings_payload(data: object) -> list[dict[str, object]]:
-    if not isinstance(data, list):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={'error': 'ratings_payload_must_be_list'},
-        )
-    if len(data) > RATINGS_STATS_MAX_ITEMS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={'error': 'ratings_payload_too_large'},
-        )
-    allowed_types = {"movie", "show", "book"}
-    normalized: list[dict[str, object]] = []
-    for item in data:
-        if not isinstance(item, dict):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={'error': 'ratings_item_invalid'},
-            )
-        item_type = item.get("type")
-        rating = item.get("rating")
-        if item_type not in allowed_types:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={'error': 'ratings_item_type_invalid'},
-            )
-        if not isinstance(rating, (int, float)):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={'error': 'ratings_item_rating_invalid'},
-            )
-        if rating < 0 or rating > 100:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={'error': 'ratings_item_rating_out_of_range'},
-            )
-        normalized.append({"type": item_type, "rating": rating})
-    return normalized
+def _fetch_user_library_for_stats(user_id: str) -> list[dict]:
+    """Fetch the user's library with genres, formatted for the C++ stats tool."""
+    supabase = get_supabase_client()
+    result = (
+        supabase.table("user_items")
+        .select("status, rating, works(id, title, type, work_genres(genres(name)))")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    items = []
+    for row in result.data or []:
+        work = row.get("works")
+        if not work:
+            continue
+        if isinstance(work, list):
+            work = work[0] if work else None
+        if not work:
+            continue
+        genres = []
+        for wg in work.get("work_genres") or []:
+            g = wg.get("genres")
+            if isinstance(g, dict) and g.get("name"):
+                genres.append(g["name"])
+            elif isinstance(g, list):
+                for gi in g:
+                    if isinstance(gi, dict) and gi.get("name"):
+                        genres.append(gi["name"])
+        items.append({
+            "title": work.get("title", ""),
+            "type": work.get("type", ""),
+            "status": row.get("status", ""),
+            "rating": row.get("rating", 0),
+            "genres": genres,
+        })
+    return items
 
 
-@router.post('/ratings/stats')
-async def ratings_stats(request: Request, _user=Depends(get_current_user)):
-    """Compute rating stats using the C++ CLI tool."""
-    data = await request.json()
-    ratings = _validate_ratings_payload(data)
-    binary_path = _ratings_stats_binary_path()
+@router.get('/profile/stats')
+async def profile_stats(user=Depends(get_current_user)):
+    """Compute library statistics by reading the user's library and piping it through the C++ tool."""
+    library = _fetch_user_library_for_stats(user['user_id'])
+    if not library:
+        return {'stats': {
+            'types': {},
+            'statuses': {},
+            'top_genres': [],
+            'overall': {'count': 0, 'rated_count': 0, 'average_rating': 0, 'highest_rating': 0, 'highest_rated': ''},
+        }}
+
+    binary_path = _stats_binary_path()
     if not binary_path.exists():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={'error': 'ratings_stats_unavailable'},
+            detail={'error': 'stats_binary_unavailable'},
         )
     try:
         result = subprocess.run(
-            _ratings_stats_command(binary_path),
-            input=json.dumps(ratings),
+            _stats_command(binary_path),
+            input=json.dumps(library),
             capture_output=True,
             text=True,
             timeout=RATINGS_STATS_TIMEOUT_SECONDS,
@@ -309,24 +313,126 @@ async def ratings_stats(request: Request, _user=Depends(get_current_user)):
     except subprocess.TimeoutExpired:
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail={'error': 'ratings_stats_timeout'},
+            detail={'error': 'stats_timeout'},
         )
     if result.returncode != 0:
-        details = result.stderr.strip()
-        if details:
-            details = details[:200]
+        details = (result.stderr.strip() or "")[:200]
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={'error': 'ratings_stats_failed', 'details': details or None},
+            detail={'error': 'stats_failed', 'details': details or None},
         )
     try:
         stats = json.loads(result.stdout)
     except json.JSONDecodeError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={'error': 'ratings_stats_invalid_output'},
+            detail={'error': 'stats_invalid_output'},
         )
     return {'stats': stats}
+
+
+GEMINI_GENERATE_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+GEMINI_GENERATE_MODELS = ["gemini-2.5-flash-lite", "gemini-2.0-flash"]
+INSIGHTS_TIMEOUT_SECONDS = 15
+
+
+@router.post('/profile/insights')
+async def profile_insights(user=Depends(get_current_user)):
+    """Generate AI-powered insights about the user's media habits using Gemini."""
+    from .config import get_config
+    import requests as http_requests
+
+    config = get_config()
+    api_key = config.GEMINI_API_KEY
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={'error': 'gemini_not_configured'},
+        )
+
+    library = _fetch_user_library_for_stats(user['user_id'])
+    if not library:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={'error': 'empty_library', 'message': 'Add items to your library first.'},
+        )
+
+    titles_by_type: dict[str, list[str]] = {}
+    genres_set: set[str] = set()
+    rated_items: list[dict] = []
+    status_counts: dict[str, int] = {}
+
+    for item in library:
+        t = item.get("type", "unknown")
+        titles_by_type.setdefault(t, []).append(item.get("title", "Untitled"))
+        for g in item.get("genres", []):
+            genres_set.add(g)
+        if item.get("rating", 0) > 0:
+            rated_items.append(item)
+        s = item.get("status", "")
+        if s:
+            status_counts[s] = status_counts.get(s, 0) + 1
+
+    rated_items.sort(key=lambda x: x.get("rating", 0), reverse=True)
+    top_rated = rated_items[:5]
+
+    summary_lines = [f"Total items: {len(library)}"]
+    for t, titles in titles_by_type.items():
+        summary_lines.append(f"  {t}s: {len(titles)} — {', '.join(titles[:8])}")
+    if genres_set:
+        summary_lines.append(f"Genres: {', '.join(sorted(genres_set))}")
+    if top_rated:
+        summary_lines.append("Top rated: " + ", ".join(
+            f"{i['title']} ({i['rating']}/100)" for i in top_rated
+        ))
+    for s, c in status_counts.items():
+        summary_lines.append(f"Status '{s}': {c}")
+
+    prompt = (
+        "You are a media analyst. Based on this user's library data, write a short, "
+        "friendly 3-4 paragraph analysis of their media tastes and habits. "
+        "Mention patterns you notice (genre preferences, rating tendencies, "
+        "types of media they gravitate toward). Keep it conversational and specific "
+        "to their actual data. Do not use bullet points or headers.\n\n"
+        "Library summary:\n" + "\n".join(summary_lines)
+    )
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": 512, "temperature": 0.7},
+    }
+
+    last_error: Exception | None = None
+    text = ""
+    for model in GEMINI_GENERATE_MODELS:
+        url = f"{GEMINI_GENERATE_BASE}/{model}:generateContent?key={api_key}"
+        try:
+            resp = http_requests.post(url, json=payload, timeout=INSIGHTS_TIMEOUT_SECONDS)
+            if resp.status_code == 429:
+                last_error = Exception(f"{model}: quota exceeded")
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            text = (
+                data.get("candidates", [{}])[0]
+                .get("content", {})
+                .get("parts", [{}])[0]
+                .get("text", "")
+            )
+            if text:
+                break
+            last_error = ValueError(f"{model}: empty response")
+        except Exception as exc:
+            last_error = exc
+            continue
+
+    if not text:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={'error': 'insights_generation_failed', 'details': str(last_error)[:200]},
+        )
+
+    return {'insights': text}
 
 
 @router.get('/recommendations')

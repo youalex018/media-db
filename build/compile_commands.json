@@ -1,8 +1,0 @@
-[
-{
-  "directory": "C:/Users/alexj/GitHub/media-db/build",
-  "command": "C:\\msys64\\ucrt64\\bin\\g++.exe   -g -std=c++17 -o CMakeFiles\\ratings_stats.dir\\src\\main.cpp.obj -c C:\\Users\\alexj\\GitHub\\media-db\\tools\\cpp\\src\\main.cpp",
-  "file": "C:/Users/alexj/GitHub/media-db/tools/cpp/src/main.cpp",
-  "output": "CMakeFiles/ratings_stats.dir/src/main.cpp.obj"
-}
-]

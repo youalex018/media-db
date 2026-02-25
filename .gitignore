@@ -13,6 +13,7 @@ __pycache__/
 
 # C++ tool build
 tools/cpp/build/
+build/
 
 # env & local
 .env

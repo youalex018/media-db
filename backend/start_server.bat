@@ -1,7 +1,7 @@
 @echo off
 REM Start script for Windows Command Prompt/PowerShell
 
-echo 🚀 Starting Media DB Backend Server
+echo 🚀 Starting Mediarium Backend Server
 echo ==================================
 
 REM Activate virtual environment

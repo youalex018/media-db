@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Common issues and solutions for the Media DB application.
+Common issues and solutions for the Mediarium application.
 
 ## Environment Setup Issues
 

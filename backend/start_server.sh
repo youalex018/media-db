@@ -1,7 +1,7 @@
 #!/bin/bash
 # Start script for Git Bash on Windows
 
-echo "🚀 Starting Media DB Backend Server"
+echo "🚀 Starting Mediarium Backend Server"
 echo "=================================="
 
 # Activate virtual environment

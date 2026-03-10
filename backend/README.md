@@ -1,1 +1,1 @@
-Backend for Media DB (FastAPI BFF)
+Backend for Mediarium (FastAPI BFF)

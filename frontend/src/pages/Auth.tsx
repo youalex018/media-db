@@ -6,6 +6,10 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Film, BookOpen, Tv, Star, BarChart2, Library } from 'lucide-react'
+import Aurora from '@/components/reactbits/Aurora'
+import BlurText from '@/components/reactbits/BlurText'
+import ShinyText from '@/components/reactbits/ShinyText'
+import SpotlightCard from '@/components/reactbits/SpotlightCard'
 
 const FEATURES = [
   { icon: Film, label: 'Movies', description: "Track every film you've watched or want to watch" },
@@ -61,49 +65,57 @@ export function AuthPage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#0a0f1e]">
+    <div className="relative min-h-screen overflow-hidden bg-abyss">
 
-      {/* Decorative background blobs */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-40 -top-40 h-[600px] w-[600px] rounded-full bg-cyan-600/20 blur-[120px]" />
-        <div className="absolute -bottom-40 -right-40 h-[500px] w-[500px] rounded-full bg-indigo-600/20 blur-[120px]" />
-        <div className="absolute left-1/2 top-1/3 h-[400px] w-[400px] -translate-x-1/2 rounded-full bg-violet-600/10 blur-[100px]" />
-        {/* Subtle dot grid */}
-        <svg className="absolute inset-0 h-full w-full opacity-[0.06]" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-              <circle cx="1" cy="1" r="1" fill="white" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#dots)" />
-        </svg>
+      {/* Aurora WebGL background */}
+      <div className="pointer-events-none absolute inset-0">
+        <Aurora
+          colorStops={['#0891b2', '#7c3aed', '#06b6d4']}
+          amplitude={1.2}
+          blend={0.6}
+          speed={0.6}
+        />
       </div>
 
+      {/* Subtle overlay grain */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-abyss/30 via-transparent to-abyss/60" />
+
       {/* Page layout */}
-      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-12 px-4 py-16 lg:flex-row lg:items-start lg:justify-center lg:gap-20 lg:pt-24">
+      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-12 px-4 py-16 lg:flex-row lg:items-start lg:justify-center lg:gap-20 lg:pt-28">
 
         {/* Left — branding + features */}
         <div className="flex max-w-md flex-col gap-8 text-white">
           {/* Logo mark */}
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-indigo-500 shadow-lg">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-ocean-400 to-violet-500 shadow-lg shadow-ocean-400/20">
               <span className="text-xl font-black text-white">M</span>
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold tracking-tight">Media DB</h1>
-              <p className="text-xs font-medium text-cyan-300/80">Your personal media shelf</p>
+              <BlurText
+                text="Mediarium"
+                className="text-3xl font-extrabold tracking-tight"
+                delay={80}
+                animateBy="letters"
+              />
+              <ShinyText
+                text="Your personal media universe"
+                className="text-xs font-medium"
+                color="#94a3b8"
+                shineColor="#22d3ee"
+                speed={3}
+              />
             </div>
           </div>
 
           {/* Tagline */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <h2 className="text-4xl font-bold leading-tight tracking-tight lg:text-5xl">
               One place for every
-              <span className="block bg-gradient-to-r from-cyan-400 to-indigo-400 bg-clip-text text-transparent">
+              <span className="block bg-gradient-to-r from-ocean-400 via-violet-400 to-ocean-300 bg-clip-text text-transparent">
                 story you love.
               </span>
             </h2>
-            <p className="text-base text-slate-300">
+            <p className="text-base text-slate-300/80">
               Track, rate, and review every movie, show, and book — all in one personal library.
             </p>
           </div>
@@ -111,23 +123,26 @@ export function AuthPage() {
           {/* Feature grid */}
           <div className="grid grid-cols-2 gap-3">
             {FEATURES.map(({ icon: Icon, label, description }) => (
-              <div
+              <SpotlightCard
                 key={label}
-                className="flex flex-col gap-1.5 rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm"
+                className="border-white/[0.08] bg-white/[0.03]"
+                spotlightColor="rgba(34, 211, 238, 0.08)"
               >
-                <div className="flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-cyan-400" />
-                  <span className="text-sm font-semibold">{label}</span>
+                <div className="flex flex-col gap-1.5 p-3">
+                  <div className="flex items-center gap-2">
+                    <Icon className="h-4 w-4 text-ocean-400" />
+                    <span className="text-sm font-semibold">{label}</span>
+                  </div>
+                  <p className="text-xs leading-relaxed text-slate-400">{description}</p>
                 </div>
-                <p className="text-xs leading-relaxed text-slate-400">{description}</p>
-              </div>
+              </SpotlightCard>
             ))}
           </div>
         </div>
 
         {/* Right — auth card */}
         <div className="w-full max-w-md">
-          <Card className="border-white/10 bg-white/5 backdrop-blur-md text-white shadow-2xl">
+          <Card className="border-white/[0.08] bg-white/[0.04] backdrop-blur-xl text-white shadow-2xl shadow-black/20">
             <CardHeader className="pb-2">
               <CardTitle className="text-xl text-white">
                 {mode === 'otp' ? 'Magic Link Login' : isSignUp ? 'Create Account' : 'Welcome back'}
@@ -139,11 +154,11 @@ export function AuthPage() {
 
             <CardContent className="space-y-5">
               <Tabs value={mode} onValueChange={(v) => setMode(v as any)} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 bg-white/10">
-                  <TabsTrigger value="password" className="data-[state=active]:bg-white/20 data-[state=active]:text-white text-slate-400">
+                <TabsList className="grid w-full grid-cols-2 bg-white/[0.06]">
+                  <TabsTrigger value="password" className="data-[state=active]:bg-white/[0.12] data-[state=active]:text-white text-slate-400">
                     Password
                   </TabsTrigger>
-                  <TabsTrigger value="otp" className="data-[state=active]:bg-white/20 data-[state=active]:text-white text-slate-400">
+                  <TabsTrigger value="otp" className="data-[state=active]:bg-white/[0.12] data-[state=active]:text-white text-slate-400">
                     Magic Link
                   </TabsTrigger>
                 </TabsList>
@@ -159,7 +174,7 @@ export function AuthPage() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="border-white/20 bg-white/10 text-white placeholder:text-slate-500 focus-visible:ring-cyan-500"
+                    className="border-white/[0.1] bg-white/[0.06] text-white placeholder:text-slate-500 focus-visible:ring-ocean-400"
                   />
                 </div>
 
@@ -170,7 +185,7 @@ export function AuthPage() {
                       {!isSignUp && (
                         <Button
                           variant="link"
-                          className="h-auto p-0 text-xs text-cyan-400 hover:text-cyan-300"
+                          className="h-auto p-0 text-xs text-ocean-400 hover:text-ocean-300"
                           type="button"
                           onClick={() => {
                             supabase.auth.resetPasswordForEmail(email).then(({ error }) => {
@@ -189,20 +204,20 @@ export function AuthPage() {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="border-white/20 bg-white/10 text-white placeholder:text-slate-500 focus-visible:ring-cyan-500"
+                      className="border-white/[0.1] bg-white/[0.06] text-white placeholder:text-slate-500 focus-visible:ring-ocean-400"
                     />
                   </div>
                 )}
 
                 {message && (
-                  <div className={`rounded p-2 text-sm ${message.startsWith('Error') ? 'bg-red-500/20 text-red-300' : 'bg-cyan-500/20 text-cyan-300'}`}>
+                  <div className={`rounded-lg p-3 text-sm ${message.startsWith('Error') ? 'bg-red-500/15 text-red-300 border border-red-500/20' : 'bg-ocean-500/15 text-ocean-300 border border-ocean-500/20'}`}>
                     {message}
                   </div>
                 )}
 
                 <Button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-cyan-500 to-indigo-500 font-semibold text-white hover:from-cyan-400 hover:to-indigo-400"
+                  className="w-full bg-gradient-to-r from-ocean-500 to-violet-500 font-semibold text-white hover:from-ocean-400 hover:to-violet-400 shadow-lg shadow-ocean-500/20"
                   disabled={loading}
                 >
                   {loading ? 'Loading...' : mode === 'otp' ? 'Send Magic Link' : isSignUp ? 'Sign Up' : 'Sign In'}
@@ -214,7 +229,7 @@ export function AuthPage() {
                   {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
                   <Button
                     variant="link"
-                    className="h-auto p-0 text-cyan-400 underline hover:text-cyan-300"
+                    className="h-auto p-0 text-ocean-400 underline hover:text-ocean-300"
                     onClick={() => setIsSignUp(!isSignUp)}
                   >
                     {isSignUp ? 'Sign In' : 'Sign Up'}
@@ -226,7 +241,7 @@ export function AuthPage() {
             <CardFooter className="flex flex-col gap-4">
               <div className="relative w-full">
                 <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-white/10" />
+                  <span className="w-full border-t border-white/[0.08]" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
                   <span className="bg-transparent px-2 text-slate-500">Or continue with</span>
@@ -234,7 +249,7 @@ export function AuthPage() {
               </div>
               <Button
                 variant="outline"
-                className="w-full border-white/20 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+                className="w-full border-white/[0.1] bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white"
                 onClick={handleDevLogin}
               >
                 Dev Bypass (Fake Login)

@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import { api, type Work, type WorkType } from '@/lib/api'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
+import { CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Search as SearchIcon, Plus, Check, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import SpotlightCard from '@/components/reactbits/SpotlightCard'
 
 // Simple debounce hook
 function useDebounce<T>(value: T, delay: number): T {
@@ -155,7 +156,7 @@ export function SearchPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {results.map((work) => (
-          <Card key={work.id} className="overflow-hidden flex flex-col">
+          <SpotlightCard key={work.id} className="flex flex-col overflow-hidden">
             <div className="aspect-[2/3] relative bg-muted">
                 {work.poster && <img src={work.poster} alt={work.title} className="object-cover w-full h-full" />}
             </div>
@@ -204,7 +205,7 @@ export function SearchPage() {
                 )
               })()}
             </CardFooter>
-          </Card>
+          </SpotlightCard>
         ))}
       </div>
     </div>

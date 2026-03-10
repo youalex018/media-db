@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Loader2, Mail, User as UserIcon, Calendar, Database, Sparkles, Film, Tv, BookOpen } from 'lucide-react'
+import CountUp from '@/components/reactbits/CountUp'
 
 interface ProfileStats {
   types: Record<string, { count: number; rated_count: number; average_rating: number }>
@@ -93,7 +94,7 @@ export function ProfilePage() {
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
                 <AvatarImage src="" />
-                <AvatarFallback className="text-2xl font-bold bg-primary/10 text-primary">
+                <AvatarFallback className="text-2xl font-bold bg-ocean-400/15 text-ocean-400">
                   {user.email?.[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -130,8 +131,8 @@ export function ProfilePage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-secondary rounded-lg">
-                <Database className="h-6 w-6 text-primary" />
+              <div className="p-2 bg-ocean-400/10 rounded-lg">
+                <Database className="h-6 w-6 text-ocean-400" />
               </div>
               <div>
                 <CardTitle>Library Statistics</CardTitle>
@@ -144,12 +145,14 @@ export function ProfilePage() {
               <div className="grid gap-6 sm:grid-cols-2">
                 <div className="space-y-1">
                   <span className="text-sm font-medium text-muted-foreground">Total Items</span>
-                  <div className="text-3xl font-bold">{totalCount}</div>
+                  <div className="text-3xl font-bold">
+                    <CountUp to={totalCount} duration={1.5} />
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <span className="text-sm font-medium text-muted-foreground">Average Rating</span>
                   <div className="text-3xl font-bold">
-                    {Math.round(stats.overall?.average_rating || 0)}
+                    <CountUp to={Math.round(stats.overall?.average_rating || 0)} duration={1.5} />
                     <span className="text-base font-normal text-muted-foreground"> / 100</span>
                   </div>
                 </div>
@@ -172,30 +175,30 @@ export function ProfilePage() {
                   <div className="space-y-1">
                     <div className="flex justify-between text-sm">
                       <span className="flex items-center gap-1.5"><Film className="h-3.5 w-3.5" /> Movies</span>
-                      <span className="font-medium">{movieCount}</span>
+                      <span className="font-medium"><CountUp to={movieCount} duration={1.5} /></span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500" style={{ width: `${(movieCount / Math.max(totalCount, 1)) * 100}%` }} />
+                      <div className="h-full bg-ocean-400 transition-all duration-1000" style={{ width: `${(movieCount / Math.max(totalCount, 1)) * 100}%` }} />
                     </div>
                   </div>
 
                   <div className="space-y-1">
                     <div className="flex justify-between text-sm">
                       <span className="flex items-center gap-1.5"><Tv className="h-3.5 w-3.5" /> TV Shows</span>
-                      <span className="font-medium">{showCount}</span>
+                      <span className="font-medium"><CountUp to={showCount} duration={1.5} /></span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-green-500" style={{ width: `${(showCount / Math.max(totalCount, 1)) * 100}%` }} />
+                      <div className="h-full bg-violet-400 transition-all duration-1000" style={{ width: `${(showCount / Math.max(totalCount, 1)) * 100}%` }} />
                     </div>
                   </div>
 
                   <div className="space-y-1">
                     <div className="flex justify-between text-sm">
                       <span className="flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5" /> Books</span>
-                      <span className="font-medium">{bookCount}</span>
+                      <span className="font-medium"><CountUp to={bookCount} duration={1.5} /></span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-amber-500" style={{ width: `${(bookCount / Math.max(totalCount, 1)) * 100}%` }} />
+                      <div className="h-full bg-ocean-600 transition-all duration-1000" style={{ width: `${(bookCount / Math.max(totalCount, 1)) * 100}%` }} />
                     </div>
                   </div>
                 </div>
@@ -230,8 +233,8 @@ export function ProfilePage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500/10 rounded-lg">
-                <Sparkles className="h-5 w-5 text-purple-500" />
+              <div className="p-2 bg-violet-500/10 rounded-lg">
+                <Sparkles className="h-5 w-5 text-violet-400" />
               </div>
               <div>
                 <CardTitle>AI Taste Profile</CardTitle>

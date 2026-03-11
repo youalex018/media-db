@@ -2,7 +2,10 @@ import logging
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from .config import get_config
+from .rate_limit import limiter
 from .routes import router as api_router
 from .auth import get_jwks
 
@@ -12,6 +15,8 @@ def create_app() -> FastAPI:
     config = get_config()
 
     app = FastAPI()
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     # Configure logging
     if config.FLASK_ENV == 'development':
@@ -36,7 +41,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=config.ALLOWED_ORIGINS,
         allow_credentials=False,
-        allow_methods=['GET', 'POST', 'OPTIONS'],
+        allow_methods=['GET', 'POST', 'PATCH', 'OPTIONS'],
         allow_headers=['Authorization', 'Content-Type'],
         expose_headers=['Content-Type'],
         max_age=3600

@@ -76,6 +76,46 @@ export interface TonightFilters {
   limit?: number;
 }
 
+export interface PublicUser {
+  username: string;
+  avatar_url: string | null;
+  show_ratings?: boolean;
+  show_reviews?: boolean;
+}
+
+export interface PublicLibraryItem {
+  work_id: number;
+  title: string;
+  year: number | null;
+  type: string;
+  poster_url: string | null;
+  overview: string | null;
+  genres: string[];
+  status: string;
+  rating: number | null;
+  review: string | null;
+  is_favorite: boolean;
+  source_key: string | null;
+  tmdb_id: number | null;
+  openlibrary_id: string | null;
+}
+
+export interface PublicLibraryResponse {
+  profile: PublicUser;
+  items: PublicLibraryItem[];
+  count: number;
+}
+
+export interface ProfileUpdate {
+  username?: string;
+  is_public?: boolean;
+  show_username?: boolean;
+  show_avatar?: boolean;
+  show_ratings?: boolean;
+  show_reviews?: boolean;
+  avatar_url?: string;
+}
+
 const FAVORITES_TAG = 'favorites';
 
 function isDevMode(): boolean {
@@ -86,12 +126,6 @@ async function getAuthToken(): Promise<string | null> {
   if (isDevMode()) return null;
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
-}
-
-async function getSessionUserId(): Promise<string | null> {
-  if (isDevMode()) return null;
-  const { data } = await supabase.auth.getSession();
-  return data.session?.user?.id ?? null;
 }
 
 function normalizeJoinedWork(rawWork: any): any | null {
@@ -233,6 +267,43 @@ export const api = {
       }
     }
     return keys;
+  },
+
+  getLibrarySourceMap: async (): Promise<Map<string, { status: string }>> => {
+    if (isDevMode()) return new Map();
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) return new Map();
+
+    const { data, error } = await supabase
+      .from('user_items')
+      .select(`
+        status,
+        work:works (
+          type,
+          tmdb_id,
+          openlibrary_id
+        )
+      `)
+      .eq('user_id', session.user.id);
+    if (error) throw error;
+
+    const map = new Map<string, { status: string }>();
+    for (const row of (data || []) as any[]) {
+      const work = normalizeJoinedWork(row?.work);
+      const tmdbId = work?.tmdb_id;
+      const openlibraryId = work?.openlibrary_id;
+      const workType = work?.type || 'movie';
+      const status = workType === 'book'
+        ? dbStatusToFrontend(row.status, 'book')
+        : dbStatusToFrontend(row.status, workType);
+      if (tmdbId !== null && tmdbId !== undefined) {
+        map.set(`tmdb:${String(tmdbId)}`, { status });
+      }
+      if (openlibraryId) {
+        map.set(`openlibrary:${String(openlibraryId)}`, { status });
+      }
+    }
+    return map;
   },
   
   addToLibrary: async (item: Work) => {
@@ -651,5 +722,92 @@ export const api = {
 
     const data = await res.json();
     return (data.results || []) as Recommendation[];
+  },
+
+  searchUsers: async (query: string): Promise<PublicUser[]> => {
+    if (!query || query.length < 2) return [];
+    const token = await getAuthToken();
+    if (!token) return [];
+
+    const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      if (res.status === 429) throw new Error('Too many requests. Please wait a moment.');
+      throw new Error('User search failed');
+    }
+    const data = await res.json();
+    return (data.users || []) as PublicUser[];
+  },
+
+  getPublicProfile: async (username: string): Promise<PublicUser | null> => {
+    const res = await fetch(`/api/public/profile/${encodeURIComponent(username)}`);
+    if (!res.ok) return null;
+    return await res.json();
+  },
+
+  getPublicLibrary: async (username: string): Promise<PublicLibraryResponse | null> => {
+    const res = await fetch(`/api/library/${encodeURIComponent(username)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      profile: data.profile,
+      items: (data.items || []).map((item: any) => ({
+        work_id: item.work_id,
+        title: item.title,
+        year: item.year,
+        type: item.type,
+        poster_url: item.poster_url,
+        overview: item.overview,
+        genres: item.genres || [],
+        status: item.type === 'book'
+          ? dbStatusToFrontend(item.status, 'book')
+          : dbStatusToFrontend(item.status, item.type || 'movie'),
+        rating: item.rating ?? null,
+        review: item.review ?? null,
+        is_favorite: item.is_favorite || false,
+        source_key: item.source_key,
+        tmdb_id: item.tmdb_id,
+        openlibrary_id: item.openlibrary_id,
+      })),
+      count: data.count,
+    };
+  },
+
+  updateProfile: async (updates: ProfileUpdate): Promise<{ updated: ProfileUpdate; profile: any }> => {
+    if (isDevMode()) throw new Error('Profile update requires a real account.');
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) throw new Error('Not authenticated');
+
+    const res = await fetch('/api/profile', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(updates),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      const message = err.detail?.message || err.detail?.error || 'Failed to update profile';
+      throw new Error(message);
+    }
+
+    return await res.json();
+  },
+
+  getMyProfile: async (): Promise<{ username: string; is_public: boolean; show_username: boolean; show_avatar: boolean; show_ratings: boolean; show_reviews: boolean; avatar_url: string | null } | null> => {
+    if (isDevMode()) return null;
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) return null;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('username, is_public, show_username, show_avatar, show_ratings, show_reviews, avatar_url')
+      .eq('id', session.user.id)
+      .single();
+    if (error || !data) return null;
+    return data;
   },
 }

@@ -11,6 +11,8 @@ const LibraryPage = lazy(() => import('@/pages/Library').then(m => ({ default: m
 const ProfilePage = lazy(() => import('@/pages/Profile').then(m => ({ default: m.ProfilePage })))
 const ItemDetailPage = lazy(() => import('@/pages/ItemDetail').then(m => ({ default: m.ItemDetailPage })))
 const DiscoverPage = lazy(() => import('@/pages/Discover').then(m => ({ default: m.DiscoverPage })))
+const CommunityPage = lazy(() => import('@/pages/Community').then(m => ({ default: m.CommunityPage })))
+const PublicLibraryPage = lazy(() => import('@/pages/PublicLibrary').then(m => ({ default: m.PublicLibraryPage })))
 
 function PageLoader() {
   return (
@@ -57,6 +59,9 @@ function App() {
     <BrowserRouter>
       <Suspense fallback={<PageLoader />}>
         <Routes>
+          {/* Public route accessible to everyone */}
+          <Route path="/u/:username" element={<PublicLibraryPage />} />
+
           {!session ? (
               <>
                   <Route path="/auth" element={<AuthPage />} />
@@ -69,6 +74,7 @@ function App() {
                   <Route path="/library" element={<LibraryPage />} />
                   <Route path="/library/:id" element={<ItemDetailPage />} />
                   <Route path="/discover" element={<DiscoverPage />} />
+                  <Route path="/community" element={<CommunityPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="*" element={<Navigate to="/search" replace />} />
               </Route>

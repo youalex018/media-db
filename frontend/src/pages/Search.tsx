@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api, type Work, type WorkType } from '@/lib/api'
+import { useDebounce } from '@/hooks/useDebounce'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
@@ -7,20 +8,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Search as SearchIcon, Plus, Check, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import SpotlightCard from '@/components/reactbits/SpotlightCard'
-
-// Simple debounce hook
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-  return debouncedValue;
-}
 
 export function SearchPage() {
   const [query, setQuery] = useState('')

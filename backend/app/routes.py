@@ -218,7 +218,7 @@ async def get_public_library(username: str):
 
     return {
         'profile': {
-            'username': profile.get('username') if profile.get('show_username') else username,
+            'username': profile.get('username') if profile.get('show_username') else None,
             'avatar_url': profile.get('avatar_url') if profile.get('show_avatar') else None,
             'show_ratings': show_ratings,
             'show_reviews': show_reviews,
@@ -258,7 +258,7 @@ async def update_profile(request: Request, user=Depends(get_current_user)):
         existing = (
             supabase.table('profiles')
             .select('id')
-            .ilike('username', new_username)
+            .ilike('username', _escape_ilike_pattern(new_username))
             .neq('id', user['user_id'])
             .limit(1)
             .execute()

@@ -1,6 +1,6 @@
 # 🔒 Security Overview
 
-This document outlines the security model and best practices for the Mediarium application.
+This document outlines the security model and best practices for the Shelflife application.
 
 ## 🛡️ Row Level Security (RLS) Model
 

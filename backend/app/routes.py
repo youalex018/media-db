@@ -432,7 +432,38 @@ async def profile_insights(user=Depends(get_current_user)):
             detail={'error': 'insights_generation_failed', 'details': str(last_error)[:200]},
         )
 
+    from .db import get_supabase_client
+    from datetime import datetime, timezone
+    try:
+        db = get_supabase_client()
+        db.table('profiles').update({
+            'ai_insights': text,
+            'ai_insights_updated_at': datetime.now(timezone.utc).isoformat(),
+        }).eq('id', user['user_id']).execute()
+    except Exception as save_err:
+        print(f"[WARN] Failed to persist insights: {save_err}")
+
     return {'insights': text}
+
+
+@router.get('/profile/insights')
+async def get_saved_insights(user=Depends(get_current_user)):
+    """Retrieve the last saved AI insights for the current user."""
+    from .db import get_supabase_client
+
+    db = get_supabase_client()
+    result = db.table('profiles').select(
+        'ai_insights, ai_insights_updated_at'
+    ).eq('id', user['user_id']).maybe_single().execute()
+
+    row = result.data
+    if not row or not row.get('ai_insights'):
+        return {'insights': None, 'updated_at': None}
+
+    return {
+        'insights': row['ai_insights'],
+        'updated_at': row['ai_insights_updated_at'],
+    }
 
 
 @router.get('/recommendations')

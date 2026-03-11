@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Common issues and solutions for the Mediarium application.
+Common issues and solutions for the Shelflife application.
 
 ## Environment Setup Issues
 

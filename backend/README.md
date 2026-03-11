@@ -1,1 +1,1 @@
-Backend for Mediarium (FastAPI BFF)
+Backend for Shelflife (FastAPI BFF)

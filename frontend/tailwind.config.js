@@ -50,33 +50,40 @@ export default {
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
   			},
-  			ocean: {
-  				50: '#ecfeff',
-  				100: '#cffafe',
-  				200: '#a5f3fc',
-  				300: '#67e8f9',
-  				400: '#22d3ee',
-  				500: '#06b6d4',
-  				600: '#0891b2',
-  				700: '#0e7490',
-  				800: '#155e75',
-  				900: '#164e63',
-  				950: '#083344',
+  			timber: {
+  				50: '#fdf8f0',
+  				100: '#f5e6ce',
+  				200: '#e8c99a',
+  				300: '#d4a053',
+  				400: '#c08a3e',
+  				500: '#a67332',
+  				600: '#8a5e28',
+  				700: '#6e4a20',
+  				800: '#533818',
+  				900: '#3a2810',
+  				950: '#1a1410',
   			},
-  			abyss: {
-  				DEFAULT: '#080d1a',
-  				light: '#0d1425',
-  				mid: '#1a2332',
-  			}
+  			leaf: {
+  				400: '#4ade80',
+  				500: '#22c55e',
+  				600: '#16a34a',
+  			},
   		},
   		keyframes: {
   			'float': {
   				'0%, 100%': { transform: 'translateY(0)' },
   				'50%': { transform: 'translateY(-6px)' },
   			},
+  			'dust': {
+  				'0%': { transform: 'translateY(0) translateX(0)', opacity: 0 },
+  				'20%': { opacity: 0.6 },
+  				'80%': { opacity: 0.4 },
+  				'100%': { transform: 'translateY(-80px) translateX(20px)', opacity: 0 },
+  			},
   		},
   		animation: {
   			'float': 'float 6s ease-in-out infinite',
+  			'dust': 'dust 8s ease-in-out infinite',
   		},
   	}
   },

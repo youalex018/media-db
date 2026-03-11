@@ -4,6 +4,7 @@ import { Search, Library, User, LogOut, Menu, X, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/lib/api';
+import { ShelfIcon } from '@/components/ShelfIcon';
 
 export function Layout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -11,7 +12,7 @@ export function Layout() {
   const handleLogout = async () => {
     localStorage.removeItem('sb-fake-session');
     await supabase.auth.signOut();
-    window.location.href = '/auth';
+    window.location.href = '/auth'; // Force full reload to clear any memory state/hooks
   };
 
   const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => (
@@ -20,7 +21,7 @@ export function Layout() {
       className={({ isActive }) =>
         `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
           isActive
-            ? 'bg-ocean-400/10 text-ocean-400 font-medium'
+            ? 'bg-timber-300/10 text-timber-300 font-medium'
             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
         }`
       }
@@ -35,8 +36,8 @@ export function Layout() {
     <div className="flex h-screen overflow-hidden flex-col md:flex-row bg-background">
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 border-b border-border/50">
-        <div className="font-bold text-xl bg-gradient-to-r from-ocean-400 to-violet-400 bg-clip-text text-transparent">
-          Mediarium
+        <div className="font-bold text-xl text-timber-300">
+          Shelflife
         </div>
         <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
           {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -50,11 +51,9 @@ export function Layout() {
       `}>
         <div className="flex flex-col h-full p-4">
           <div className="hidden md:flex items-center gap-3 px-2 py-4 mb-4">
-            <div className="h-9 w-9 bg-gradient-to-br from-ocean-400 to-violet-500 rounded-lg flex items-center justify-center text-white font-bold shadow-md shadow-ocean-400/20">
-              M
-            </div>
-            <span className="font-bold text-xl bg-gradient-to-r from-ocean-400 to-violet-400 bg-clip-text text-transparent">
-              Mediarium
+            <ShelfIcon className="h-9 w-9" />
+            <span className="font-bold text-xl text-timber-300">
+              Shelflife
             </span>
           </div>
 

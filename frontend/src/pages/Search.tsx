@@ -48,14 +48,18 @@ export function SearchPage() {
     async function doSearch() {
       if (!debouncedQuery) {
         setResults([])
+        setSearchError(null)
         return
       }
       setLoading(true)
+      setSearchError(null)
       try {
         const data = await api.search(debouncedQuery, type)
         setResults(data)
-      } catch (e) {
+      } catch (e: any) {
         console.error(e)
+        setSearchError(e?.message || 'Search failed. Is the backend running?')
+        setResults([])
       } finally {
         setLoading(false)
       }
@@ -63,6 +67,7 @@ export function SearchPage() {
     doSearch()
   }, [debouncedQuery, type])
 
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [addError, setAddError] = useState<string | null>(null)
   const [addingId, setAddingId] = useState<string | number | null>(null)
   const isHero = !query.trim() && results.length === 0 && !loading
@@ -139,6 +144,12 @@ export function SearchPage() {
       {loading && (
         <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {searchError && (
+        <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+            {searchError}
         </div>
       )}
 

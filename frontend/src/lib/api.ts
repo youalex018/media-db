@@ -78,6 +78,22 @@ export interface TonightFilters {
 
 const FAVORITES_TAG = 'favorites';
 
+function isDevMode(): boolean {
+  return localStorage.getItem('sb-fake-session') === 'true';
+}
+
+async function getAuthToken(): Promise<string | null> {
+  if (isDevMode()) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
+}
+
+async function getSessionUserId(): Promise<string | null> {
+  if (isDevMode()) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user?.id ?? null;
+}
+
 function normalizeJoinedWork(rawWork: any): any | null {
   if (!rawWork) return null;
   if (Array.isArray(rawWork)) {
@@ -152,23 +168,32 @@ async function getGenresByWorkIds(workIds: Array<string | number>): Promise<Reco
 export const api = {
   search: async (query: string, type: WorkType = 'all') => {
     if (!query) return [];
+
+    const token = await getAuthToken();
+    if (!token && isDevMode()) {
+      throw new Error('Search requires a real account. Sign in with email/password to use search.');
+    }
     
     const params = new URLSearchParams({ q: query });
     if (type !== 'all') {
         params.append('type', type);
     }
+
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     
-    const res = await fetch(`/api/search?${params.toString()}`, {
-        headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        }
-    });
+    const res = await fetch(`/api/search?${params.toString()}`, { headers });
     
-    if (!res.ok) throw new Error('Search failed');
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('Authentication required. Please sign in with a real account to search.');
+      }
+      throw new Error('Search failed');
+    }
     
     const data = await res.json();
     return data.results.map((item: any) => ({
-        id: item.source?.external_id || Math.random(), // Use external ID for key if available
+        id: item.source?.external_id || Math.random(),
         title: item.title,
         year: item.year,
         type: item.type,
@@ -180,6 +205,7 @@ export const api = {
   },
 
   getLibrarySourceKeys: async (): Promise<Set<string>> => {
+    if (isDevMode()) return new Set();
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) return new Set();
 
@@ -210,6 +236,7 @@ export const api = {
   },
   
   addToLibrary: async (item: Work) => {
+    if (isDevMode()) throw new Error('Adding to library requires a real account.');
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) throw new Error('Not authenticated');
 
@@ -248,6 +275,7 @@ export const api = {
   },
   
   getLibrary: async (filters: LibraryFilters = {}) => {
+    if (isDevMode()) return [];
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) return [];
 
@@ -349,6 +377,7 @@ export const api = {
   },
 
   getUserTagNames: async (): Promise<string[]> => {
+    if (isDevMode()) return [];
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) return [];
 
@@ -364,6 +393,7 @@ export const api = {
   },
 
   setItemTags: async (userItemId: number, tagNames: string[]) => {
+    if (isDevMode()) throw new Error('Tags require a real account.');
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) throw new Error('Not authenticated');
 
@@ -427,6 +457,7 @@ export const api = {
   },
   
   updateLibraryItem: async (workId: string | number, updates: Partial<LibraryItem>) => {
+    if (isDevMode()) throw new Error('Saving requires a real account.');
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) throw new Error('Not authenticated');
 
@@ -448,6 +479,7 @@ export const api = {
   },
 
   removeLibraryItem: async (workId: string | number) => {
+    if (isDevMode()) throw new Error('Removing items requires a real account.');
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) throw new Error('Not authenticated');
 
@@ -461,6 +493,7 @@ export const api = {
   },
 
   getLibraryItem: async (workId: string | number) => {
+    if (isDevMode()) return null;
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) return null;
 
@@ -515,8 +548,9 @@ export const api = {
   },
 
   getProfileStats: async () => {
+    if (isDevMode()) return null;
     const session = (await supabase.auth.getSession()).data.session;
-    if (!session) throw new Error('Not authenticated');
+    if (!session) return null;
 
     const res = await fetch('/api/profile/stats', {
         headers: { 'Authorization': `Bearer ${session.access_token}` },
@@ -531,7 +565,22 @@ export const api = {
     return data.stats;
   },
 
+  getSavedInsights: async (): Promise<{ insights: string | null; updated_at: string | null }> => {
+    if (isDevMode()) return { insights: null, updated_at: null };
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) return { insights: null, updated_at: null };
+
+    const res = await fetch('/api/profile/insights', {
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+    });
+
+    if (!res.ok) return { insights: null, updated_at: null };
+
+    return await res.json();
+  },
+
   getInsights: async (): Promise<string> => {
+    if (isDevMode()) throw new Error('AI insights require a real account.');
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) throw new Error('Not authenticated');
 
@@ -550,6 +599,7 @@ export const api = {
   },
 
   getRecommendations: async (seedWorkId: number, limit: number = 10, mode: string = 'hybrid', libraryOnly: boolean = false): Promise<Recommendation[]> => {
+    if (isDevMode()) return [];
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) throw new Error('Not authenticated');
 
@@ -578,6 +628,7 @@ export const api = {
   },
 
   getTonightPicks: async (filters: TonightFilters = {}): Promise<Recommendation[]> => {
+    if (isDevMode()) return [];
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) throw new Error('Not authenticated');
 

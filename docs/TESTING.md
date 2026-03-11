@@ -1,6 +1,6 @@
 # Testing Guide
 
-This document provides comprehensive testing instructions for the Mediarium application.
+This document provides comprehensive testing instructions for the Shelflife application.
 
 ## Quick Start
 

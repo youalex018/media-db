@@ -1,7 +1,7 @@
 #!/bin/bash
 # Start script for Git Bash on Windows
 
-echo "🚀 Starting Mediarium Backend Server"
+echo "🚀 Starting Shelflife Backend Server"
 echo "=================================="
 
 # Activate virtual environment

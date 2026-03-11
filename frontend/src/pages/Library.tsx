@@ -28,6 +28,12 @@ const titleCase = (value: string): string =>
     .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
     .join(' ')
 
+const spineColor: Record<string, string> = {
+  movie: 'border-l-timber-300',
+  show: 'border-l-leaf-500',
+  book: 'border-l-timber-600',
+}
+
 const LIBRARY_FILTERS_STORAGE_KEY = 'library-filters-v1'
 
 type StoredLibraryFilters = {
@@ -445,7 +451,7 @@ export function LibraryPage() {
                 return (
                 <div
                   key={item.id}
-                  className="flex cursor-pointer gap-4 p-4 rounded-lg border bg-card text-card-foreground shadow-sm items-start transition-colors hover:bg-muted/50"
+                  className={`flex cursor-pointer gap-4 p-4 rounded-lg border border-l-4 ${spineColor[item.type] || 'border-l-timber-300'} bg-card text-card-foreground shadow-sm items-start transition-colors hover:bg-muted/50`}
                   onClick={() => navigate(`/library/${item.id}`)}
                 >
                     <div 

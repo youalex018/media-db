@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Loader2, Mail, User as UserIcon, Calendar, Database, Sparkles, Film, Tv, BookOpen } from 'lucide-react'
+import { Loader2, Mail, User as UserIcon, Calendar, Database, Sparkles, Film, Tv, BookOpen, Sun, Moon } from 'lucide-react'
 import CountUp from '@/components/reactbits/CountUp'
 
 interface ProfileStats {
@@ -25,8 +25,22 @@ export function ProfilePage() {
   const [stats, setStats] = useState<ProfileStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [insights, setInsights] = useState<string | null>(null)
+  const [insightsUpdatedAt, setInsightsUpdatedAt] = useState<string | null>(null)
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [insightsError, setInsightsError] = useState<string | null>(null)
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
+
+  const toggleTheme = () => {
+    const next = !isDark
+    setIsDark(next)
+    if (next) {
+      document.documentElement.classList.add('dark')
+      localStorage.setItem('theme', 'dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+      localStorage.setItem('theme', 'light')
+    }
+  }
 
   useEffect(() => {
     async function loadData() {
@@ -48,6 +62,16 @@ export function ProfilePage() {
         } catch (e) {
           console.error('Failed to load stats:', e)
         }
+
+        try {
+          const saved = await api.getSavedInsights()
+          if (saved.insights) {
+            setInsights(saved.insights)
+            setInsightsUpdatedAt(saved.updated_at)
+          }
+        } catch (e) {
+          console.error('Failed to load saved insights:', e)
+        }
       }
 
       setLoading(false)
@@ -61,6 +85,7 @@ export function ProfilePage() {
     try {
       const text = await api.getInsights()
       setInsights(text)
+      setInsightsUpdatedAt(new Date().toISOString())
     } catch (e: any) {
       setInsightsError(e?.message || 'Failed to generate insights')
     } finally {
@@ -94,7 +119,7 @@ export function ProfilePage() {
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
                 <AvatarImage src="" />
-                <AvatarFallback className="text-2xl font-bold bg-ocean-400/15 text-ocean-400">
+                <AvatarFallback className="text-2xl font-bold bg-timber-300/15 text-timber-300">
                   {user.email?.[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -119,10 +144,19 @@ export function ProfilePage() {
                 Joined: {new Date(user.created_at || Date.now()).toLocaleDateString()}
               </span>
             </div>
-            <div className="pt-4">
+            <div className="pt-4 flex items-center justify-between">
               <Badge variant="outline" className="font-mono">
                 {localStorage.getItem('sb-fake-session') ? 'DEV MODE' : 'AUTHENTICATED'}
               </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleTheme}
+                className="gap-2"
+              >
+                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {isDark ? 'Light' : 'Dark'}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -131,8 +165,8 @@ export function ProfilePage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-ocean-400/10 rounded-lg">
-                <Database className="h-6 w-6 text-ocean-400" />
+              <div className="p-2 bg-timber-300/10 rounded-lg">
+                <Database className="h-6 w-6 text-timber-300" />
               </div>
               <div>
                 <CardTitle>Library Statistics</CardTitle>
@@ -178,7 +212,7 @@ export function ProfilePage() {
                       <span className="font-medium"><CountUp to={movieCount} duration={1.5} /></span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-ocean-400 transition-all duration-1000" style={{ width: `${(movieCount / Math.max(totalCount, 1)) * 100}%` }} />
+                      <div className="h-full bg-timber-300 transition-all duration-1000" style={{ width: `${(movieCount / Math.max(totalCount, 1)) * 100}%` }} />
                     </div>
                   </div>
 
@@ -188,7 +222,7 @@ export function ProfilePage() {
                       <span className="font-medium"><CountUp to={showCount} duration={1.5} /></span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-violet-400 transition-all duration-1000" style={{ width: `${(showCount / Math.max(totalCount, 1)) * 100}%` }} />
+                      <div className="h-full bg-leaf-500 transition-all duration-1000" style={{ width: `${(showCount / Math.max(totalCount, 1)) * 100}%` }} />
                     </div>
                   </div>
 
@@ -198,7 +232,7 @@ export function ProfilePage() {
                       <span className="font-medium"><CountUp to={bookCount} duration={1.5} /></span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-ocean-600 transition-all duration-1000" style={{ width: `${(bookCount / Math.max(totalCount, 1)) * 100}%` }} />
+                      <div className="h-full bg-timber-600 transition-all duration-1000" style={{ width: `${(bookCount / Math.max(totalCount, 1)) * 100}%` }} />
                     </div>
                   </div>
                 </div>
@@ -233,12 +267,16 @@ export function ProfilePage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-violet-500/10 rounded-lg">
-                <Sparkles className="h-5 w-5 text-violet-400" />
+              <div className="p-2 bg-timber-300/10 rounded-lg">
+                <Sparkles className="h-5 w-5 text-timber-300" />
               </div>
               <div>
                 <CardTitle>AI Taste Profile</CardTitle>
-                <CardDescription>Gemini-powered analysis of your media habits</CardDescription>
+                <CardDescription>
+                  {insightsUpdatedAt
+                    ? `Last generated ${new Date(insightsUpdatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+                    : 'Gemini-powered analysis of your media habits'}
+                </CardDescription>
               </div>
             </div>
             <Button

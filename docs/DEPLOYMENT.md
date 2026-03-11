@@ -10,7 +10,8 @@ This guide covers deploying Shelflife (media-db) to production: **Vercel** (fron
 2. [Render Backend Setup](#3-render-backend-setup)
 3. [Vercel Frontend Setup](#4-vercel-frontend-setup)
 4. [Environment Variables Reference](#5-environment-variables-reference)
-5. [Post-Deployment Checklist](#6-post-deployment-checklist)
+5. [Security Before Deploy](#5-security-before-deploy)
+6. [Post-Deployment Checklist](#6-post-deployment-checklist)
 
 ---
 
@@ -166,7 +167,7 @@ Add these under **Settings → Environment Variables** (apply to **Production**)
 |----------|----------|-------------|
 | `VITE_SUPABASE_URL` | Yes | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Yes | Supabase anon/public key |
-| `VITE_API_BASE_URL` | Yes (prod) | Backend API base URL (e.g. `https://shelflife-api.onrender.com`) |
+| `VITE_API_BASE_URL` | Yes (prod) | Backend API base URL |
 
 ### Backend (Render)
 
@@ -183,7 +184,17 @@ Add these under **Settings → Environment Variables** (apply to **Production**)
 
 ---
 
-## 5. Post-Deployment Checklist
+## 5. Security Before Deploy
+
+Essentials:
+
+- No `.env` or `.env.local` committed (only `.env.example` templates)
+- `ALLOWED_ORIGINS` includes your Vercel URL in production
+- Service role key only in backend env (never in frontend)
+
+---
+
+## 6. Post-Deployment Checklist
 
 - [ ] **Supabase:** Migrations applied, redirect URLs configured.
 - [ ] **Render:** Backend healthy, `/healthz` returns `{"status":"ok"}`.

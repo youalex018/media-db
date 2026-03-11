@@ -28,6 +28,12 @@ const titleCase = (value: string): string =>
     .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
     .join(' ')
 
+const spineColor: Record<string, string> = {
+  movie: 'border-l-timber-300',
+  show: 'border-l-leaf-500',
+  book: 'border-l-timber-600',
+}
+
 const LIBRARY_FILTERS_STORAGE_KEY = 'library-filters-v1'
 
 type StoredLibraryFilters = {
@@ -401,7 +407,7 @@ export function LibraryPage() {
         </div>
       )}
       {unsavedCount > 0 && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
           {unsavedCount} unsaved {unsavedCount === 1 ? 'change' : 'changes'} in your library.
         </div>
       )}
@@ -445,7 +451,7 @@ export function LibraryPage() {
                 return (
                 <div
                   key={item.id}
-                  className="flex cursor-pointer gap-4 p-4 rounded-lg border bg-card text-card-foreground shadow-sm items-start transition-colors hover:bg-muted/50"
+                  className={`flex cursor-pointer gap-4 p-4 rounded-lg border border-l-4 ${spineColor[item.type] || 'border-l-timber-300'} bg-card text-card-foreground shadow-sm items-start transition-colors hover:bg-muted/50`}
                   onClick={() => navigate(`/library/${item.id}`)}
                 >
                     <div 
@@ -524,7 +530,7 @@ export function LibraryPage() {
                             </div>
 
                             {isDirty(item) && (
-                              <Badge variant="outline" className="border-amber-400 text-amber-700">
+                              <Badge variant="outline" className="border-amber-500/40 text-amber-400">
                                 Unsaved
                               </Badge>
                             )}

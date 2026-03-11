@@ -1,25 +1,13 @@
 import { useState, useEffect } from 'react'
 import { api, type Work, type WorkType } from '@/lib/api'
+import { useDebounce } from '@/hooks/useDebounce'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
+import { CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Search as SearchIcon, Plus, Check, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-
-// Simple debounce hook
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-  return debouncedValue;
-}
+import SpotlightCard from '@/components/reactbits/SpotlightCard'
 
 export function SearchPage() {
   const [query, setQuery] = useState('')
@@ -47,14 +35,18 @@ export function SearchPage() {
     async function doSearch() {
       if (!debouncedQuery) {
         setResults([])
+        setSearchError(null)
         return
       }
       setLoading(true)
+      setSearchError(null)
       try {
         const data = await api.search(debouncedQuery, type)
         setResults(data)
-      } catch (e) {
+      } catch (e: any) {
         console.error(e)
+        setSearchError(e?.message || 'Search failed. Is the backend running?')
+        setResults([])
       } finally {
         setLoading(false)
       }
@@ -62,6 +54,7 @@ export function SearchPage() {
     doSearch()
   }, [debouncedQuery, type])
 
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [addError, setAddError] = useState<string | null>(null)
   const [addingId, setAddingId] = useState<string | number | null>(null)
   const isHero = !query.trim() && results.length === 0 && !loading
@@ -141,6 +134,12 @@ export function SearchPage() {
         </div>
       )}
 
+      {searchError && (
+        <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+            {searchError}
+        </div>
+      )}
+
       {addError && (
         <div className="p-3 rounded-md bg-destructive/15 text-destructive text-sm">
             {addError}
@@ -155,7 +154,7 @@ export function SearchPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {results.map((work) => (
-          <Card key={work.id} className="overflow-hidden flex flex-col">
+          <SpotlightCard key={work.id} className="flex flex-col overflow-hidden">
             <div className="aspect-[2/3] relative bg-muted">
                 {work.poster && <img src={work.poster} alt={work.title} className="object-cover w-full h-full" />}
             </div>
@@ -204,7 +203,7 @@ export function SearchPage() {
                 )
               })()}
             </CardFooter>
-          </Card>
+          </SpotlightCard>
         ))}
       </div>
     </div>

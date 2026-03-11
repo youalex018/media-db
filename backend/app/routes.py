@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -8,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from .auth import get_current_user
 from .db import get_supabase_client
+from .embeddings import backfill_embeddings, circuit_breaker_status, compute_work_embedding
 from .external_sources import (
     normalize_errors,
     openlibrary_detail,
@@ -15,7 +17,6 @@ from .external_sources import (
     tmdb_detail,
     tmdb_search,
 )
-from .embeddings import backfill_embeddings, circuit_breaker_status, compute_work_embedding
 from .library_service import (
     get_cached_source,
     sync_work_genres,
@@ -29,7 +30,17 @@ from .mappers import (
     normalize_openlibrary_search_doc,
     normalize_tmdb_search_item,
 )
+from .rate_limit import limiter
 from .recommendations import recommend_for_seed, tonight_picks
+
+USERNAME_PATTERN = re.compile(r'^[a-zA-Z0-9_]{3,30}$')
+STRIP_HTML_RE = re.compile(r'<[^>]+>')
+
+
+def _escape_ilike_pattern(value: str) -> str:
+    """Escape % and _ for safe use in ILIKE (exact match, case-insensitive)."""
+    return value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+MAX_USER_SEARCH_RESULTS = 20
 
 router = APIRouter()
 RATINGS_STATS_TIMEOUT_SECONDS = 2
@@ -53,12 +64,12 @@ async def me(user=Depends(get_current_user)):
 
 @router.get('/public/profile/{username}')
 async def public_profile(username: str):
-    """Get a public profile by username (no auth required)."""
+    """Get a public profile by username (no auth required). Case-insensitive lookup."""
     supabase = get_supabase_client()
     result = (
         supabase.table('profiles')
         .select('username,avatar_url,is_public,show_username,show_avatar')
-        .eq('username', username)
+        .ilike('username', _escape_ilike_pattern(username))
         .limit(1)
         .execute()
     )
@@ -74,6 +85,212 @@ async def public_profile(username: str):
         'avatar_url': profile.get('avatar_url') if profile.get('show_avatar') else None,
     }
     return response
+
+
+def _sanitize_html(text: str | None) -> str | None:
+    if not text:
+        return text
+    return STRIP_HTML_RE.sub('', text)
+
+
+@router.get('/users/search')
+@limiter.limit("10/minute")
+async def search_users(request: Request, user=Depends(get_current_user)):
+    query = (request.query_params.get('q') or '').strip()
+    if len(query) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={'error': 'Query must be at least 2 characters'},
+        )
+
+    supabase = get_supabase_client()
+    result = (
+        supabase.table('profiles')
+        .select('username,avatar_url,show_username,show_avatar')
+        .eq('is_public', True)
+        .ilike('username', f'%{query}%')
+        .limit(MAX_USER_SEARCH_RESULTS)
+        .execute()
+    )
+
+    users = []
+    for row in result.data or []:
+        users.append({
+            'username': row.get('username') if row.get('show_username', True) else None,
+            'avatar_url': row.get('avatar_url') if row.get('show_avatar', True) else None,
+        })
+    users = [u for u in users if u.get('username')]
+
+    return {'query': query, 'users': users}
+
+
+@router.get('/library/{username}')
+async def get_public_library(username: str):
+    """Get a public user's library (read-only, no auth required). Case-insensitive lookup."""
+    supabase = get_supabase_client()
+
+    profile_result = (
+        supabase.table('profiles')
+        .select('id,username,avatar_url,is_public,show_username,show_avatar,show_ratings,show_reviews')
+        .ilike('username', _escape_ilike_pattern(username))
+        .limit(1)
+        .execute()
+    )
+    if not profile_result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={'error': 'profile_not_found'})
+
+    profile = profile_result.data[0]
+    if not profile.get('is_public'):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={'error': 'profile_not_found'})
+
+    target_user_id = profile['id']
+
+    show_ratings = profile.get('show_ratings') is not False
+    show_reviews = profile.get('show_reviews') is not False
+
+    items_result = (
+        supabase.table('user_items')
+        .select(
+            'id, status, rating, notes, created_at, '
+            'works(id, type, title, year, poster_url, overview, tmdb_id, openlibrary_id, '
+            'work_genres(genres(name))), '
+            'user_item_tags(user_tag_names(name))'
+        )
+        .eq('user_id', target_user_id)
+        .order('created_at', desc=True)
+        .execute()
+    )
+
+    items = []
+    for row in items_result.data or []:
+        work = row.get('works')
+        if not work:
+            continue
+        if isinstance(work, list):
+            work = work[0] if work else None
+        if not work:
+            continue
+
+        genres = []
+        for wg in work.get('work_genres') or []:
+            g = wg.get('genres')
+            if isinstance(g, dict) and g.get('name'):
+                genres.append(g['name'])
+            elif isinstance(g, list):
+                for gi in g:
+                    if isinstance(gi, dict) and gi.get('name'):
+                        genres.append(gi['name'])
+
+        is_favorite = False
+        for uit in row.get('user_item_tags') or []:
+            tag = uit.get('user_tag_names')
+            if isinstance(tag, dict) and (tag.get('name') or '').lower() == 'favorites':
+                is_favorite = True
+                break
+            elif isinstance(tag, list):
+                for t in tag:
+                    if isinstance(t, dict) and (t.get('name') or '').lower() == 'favorites':
+                        is_favorite = True
+                        break
+
+        source_key = None
+        if work.get('tmdb_id') is not None:
+            source_key = f"tmdb:{work['tmdb_id']}"
+        elif work.get('openlibrary_id'):
+            source_key = f"openlibrary:{work['openlibrary_id']}"
+
+        items.append({
+            'work_id': work.get('id'),
+            'title': work.get('title'),
+            'year': work.get('year'),
+            'type': work.get('type'),
+            'poster_url': work.get('poster_url'),
+            'overview': work.get('overview'),
+            'genres': genres,
+            'status': row.get('status'),
+            'rating': row.get('rating', 0) if show_ratings else None,
+            'review': _sanitize_html(row.get('notes')) if show_reviews else None,
+            'is_favorite': is_favorite,
+            'source_key': source_key,
+            'tmdb_id': work.get('tmdb_id'),
+            'openlibrary_id': work.get('openlibrary_id'),
+        })
+
+    return {
+        'profile': {
+            'username': profile.get('username') if profile.get('show_username') else None,
+            'avatar_url': profile.get('avatar_url') if profile.get('show_avatar') else None,
+            'show_ratings': show_ratings,
+            'show_reviews': show_reviews,
+        },
+        'items': items,
+        'count': len(items),
+    }
+
+
+@router.patch('/profile')
+async def update_profile(request: Request, user=Depends(get_current_user)):
+    """Update the current user's profile settings."""
+    data = await request.json()
+    if not data or not isinstance(data, dict):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={'error': 'JSON body required'},
+        )
+
+    allowed_fields = {'username', 'is_public', 'show_username', 'show_avatar', 'show_ratings', 'show_reviews', 'avatar_url'}
+    updates = {k: v for k, v in data.items() if k in allowed_fields}
+
+    if not updates:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={'error': 'No valid fields to update'},
+        )
+
+    if 'username' in updates:
+        new_username = updates['username']
+        if not isinstance(new_username, str) or not USERNAME_PATTERN.match(new_username):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={'error': 'Username must be 3-30 characters, alphanumeric and underscores only'},
+            )
+        supabase = get_supabase_client()
+        existing = (
+            supabase.table('profiles')
+            .select('id')
+            .ilike('username', _escape_ilike_pattern(new_username))
+            .neq('id', user['user_id'])
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={'error': 'username_taken', 'message': 'That username is already in use'},
+            )
+
+    for bool_field in ('is_public', 'show_username', 'show_avatar', 'show_ratings', 'show_reviews'):
+        if bool_field in updates and not isinstance(updates[bool_field], bool):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={'error': f'{bool_field} must be a boolean'},
+            )
+
+    supabase = get_supabase_client()
+    result = (
+        supabase.table('profiles')
+        .update(updates)
+        .eq('id', user['user_id'])
+        .execute()
+    )
+
+    if not result.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={'error': 'profile_update_failed'},
+        )
+
+    return {'updated': updates, 'profile': result.data[0]}
 
 
 @router.get('/search')
@@ -432,7 +649,41 @@ async def profile_insights(user=Depends(get_current_user)):
             detail={'error': 'insights_generation_failed', 'details': str(last_error)[:200]},
         )
 
+    from .db import get_supabase_client
+    from datetime import datetime, timezone
+    try:
+        db = get_supabase_client()
+        db.table('profiles').update({
+            'ai_insights': text,
+            'ai_insights_updated_at': datetime.now(timezone.utc).isoformat(),
+        }).eq('id', user['user_id']).execute()
+    except Exception as save_err:
+        print(f"[WARN] Failed to persist insights: {save_err}")
+
     return {'insights': text}
+
+
+@router.get('/profile/insights')
+async def get_saved_insights(user=Depends(get_current_user)):
+    """Retrieve the last saved AI insights for the current user."""
+    from .db import get_supabase_client
+
+    db = get_supabase_client()
+    try:
+        result = db.table('profiles').select(
+            'ai_insights, ai_insights_updated_at'
+        ).eq('id', user['user_id']).maybe_single().execute()
+        row = result.data
+    except Exception:
+        row = None
+
+    if not row or not row.get('ai_insights'):
+        return {'insights': None, 'updated_at': None}
+
+    return {
+        'insights': row['ai_insights'],
+        'updated_at': row['ai_insights_updated_at'],
+    }
 
 
 @router.get('/recommendations')
@@ -579,11 +830,3 @@ async def trigger_compute_embedding(work_id: int, _user=Depends(get_current_user
     return {'success': True, 'work_id': work_id}
 
 
-@router.get('/library')
-async def get_library(user=Depends(get_current_user)):
-    """Get user's library (placeholder)."""
-    # TODO: Implement user library retrieval
-    return {
-        'message': 'Library endpoint not yet implemented',
-        'user_id': user['user_id']
-    }

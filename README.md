@@ -1,6 +1,6 @@
-# Media DB (In Progress)
+# Shelflife
 
-A personal media database for tracking movies, TV shows, books, and more. Built with **Supabase** (auth + database), **FastAPI** (secure backend), and **React + TypeScript** (frontend).
+A personal media shelf for tracking movies, TV shows, books, and more. Built with **Supabase** (auth + database), **FastAPI** (secure backend), and **React + TypeScript** (frontend).
 
 ## Features
 

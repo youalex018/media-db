@@ -4,7 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Loader2, Mail, User as UserIcon, Calendar, Database, Sparkles, Film, Tv, BookOpen } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Loader2, Mail, User as UserIcon, Calendar, Database, Sparkles, Film, Tv, BookOpen, Sun, Moon, Globe, Link as LinkIcon, Check, Eye, EyeOff } from 'lucide-react'
+import CountUp from '@/components/reactbits/CountUp'
 
 interface ProfileStats {
   types: Record<string, { count: number; rated_count: number; average_rating: number }>
@@ -24,8 +27,36 @@ export function ProfilePage() {
   const [stats, setStats] = useState<ProfileStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [insights, setInsights] = useState<string | null>(null)
+  const [insightsUpdatedAt, setInsightsUpdatedAt] = useState<string | null>(null)
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [insightsError, setInsightsError] = useState<string | null>(null)
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
+
+  // Profile settings state
+  const [profileUsername, setProfileUsername] = useState('')
+  const [isPublic, setIsPublic] = useState(false)
+  const [showAvatar, setShowAvatar] = useState(true)
+  const [showRatings, setShowRatings] = useState(true)
+  const [showReviews, setShowReviews] = useState(true)
+  const [profileLoading, setProfileLoading] = useState(true)
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileToast, setProfileToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [usernameEditing, setUsernameEditing] = useState(false)
+  const [usernameInput, setUsernameInput] = useState('')
+  const [linkCopied, setLinkCopied] = useState(false)
+  const [usernameCopied, setUsernameCopied] = useState(false)
+
+  const toggleTheme = () => {
+    const next = !isDark
+    setIsDark(next)
+    if (next) {
+      document.documentElement.classList.add('dark')
+      localStorage.setItem('theme', 'dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+      localStorage.setItem('theme', 'light')
+    }
+  }
 
   useEffect(() => {
     async function loadData() {
@@ -47,6 +78,31 @@ export function ProfilePage() {
         } catch (e) {
           console.error('Failed to load stats:', e)
         }
+
+        try {
+          const saved = await api.getSavedInsights()
+          if (saved.insights) {
+            setInsights(saved.insights)
+            setInsightsUpdatedAt(saved.updated_at)
+          }
+        } catch (e) {
+          console.error('Failed to load saved insights:', e)
+        }
+
+        try {
+          const profile = await api.getMyProfile()
+          if (profile) {
+            setProfileUsername(profile.username || '')
+            setUsernameInput(profile.username || '')
+            setIsPublic(profile.is_public)
+            setShowAvatar(profile.show_avatar)
+            setShowRatings(profile.show_ratings)
+            setShowReviews(profile.show_reviews)
+          }
+        } catch (e) {
+          console.error('Failed to load profile settings:', e)
+        }
+        setProfileLoading(false)
       }
 
       setLoading(false)
@@ -60,11 +116,69 @@ export function ProfilePage() {
     try {
       const text = await api.getInsights()
       setInsights(text)
+      setInsightsUpdatedAt(new Date().toISOString())
     } catch (e: any) {
       setInsightsError(e?.message || 'Failed to generate insights')
     } finally {
       setInsightsLoading(false)
     }
+  }
+
+  const handleTogglePublic = async () => {
+    setProfileSaving(true)
+    try {
+      await api.updateProfile({ is_public: !isPublic })
+      setIsPublic(!isPublic)
+      setProfileToast({ type: 'success', message: !isPublic ? 'Profile is now public' : 'Profile is now private' })
+    } catch (e: any) {
+      setProfileToast({ type: 'error', message: e?.message || 'Failed to update' })
+    } finally {
+      setProfileSaving(false)
+      setTimeout(() => setProfileToast(null), 2000)
+    }
+  }
+
+  const handleToggleField = async (field: 'show_avatar' | 'show_ratings' | 'show_reviews', current: boolean) => {
+    setProfileSaving(true)
+    try {
+      await api.updateProfile({ [field]: !current })
+      if (field === 'show_avatar') setShowAvatar(!current)
+      else if (field === 'show_ratings') setShowRatings(!current)
+      else if (field === 'show_reviews') setShowReviews(!current)
+      setProfileToast({ type: 'success', message: 'Visibility updated' })
+    } catch (e: any) {
+      setProfileToast({ type: 'error', message: e?.message || 'Failed to update' })
+    } finally {
+      setProfileSaving(false)
+      setTimeout(() => setProfileToast(null), 2000)
+    }
+  }
+
+  const handleSaveUsername = async () => {
+    if (!usernameInput.trim() || usernameInput === profileUsername) {
+      setUsernameEditing(false)
+      return
+    }
+    setProfileSaving(true)
+    try {
+      await api.updateProfile({ username: usernameInput.trim() })
+      setProfileUsername(usernameInput.trim())
+      setUsernameEditing(false)
+      setProfileToast({ type: 'success', message: 'Username updated' })
+    } catch (e: any) {
+      setProfileToast({ type: 'error', message: e?.message || 'Failed to update username' })
+    } finally {
+      setProfileSaving(false)
+      setTimeout(() => setProfileToast(null), 2000)
+    }
+  }
+
+  const handleCopyLink = () => {
+    const url = `${window.location.origin}/u/${profileUsername}`
+    navigator.clipboard.writeText(url).then(() => {
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    })
   }
 
   if (loading) {
@@ -93,7 +207,7 @@ export function ProfilePage() {
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
                 <AvatarImage src="" />
-                <AvatarFallback className="text-2xl font-bold bg-primary/10 text-primary">
+                <AvatarFallback className="text-2xl font-bold bg-timber-300/15 text-timber-300">
                   {user.email?.[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -118,10 +232,19 @@ export function ProfilePage() {
                 Joined: {new Date(user.created_at || Date.now()).toLocaleDateString()}
               </span>
             </div>
-            <div className="pt-4">
+            <div className="pt-4 flex items-center justify-between">
               <Badge variant="outline" className="font-mono">
                 {localStorage.getItem('sb-fake-session') ? 'DEV MODE' : 'AUTHENTICATED'}
               </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleTheme}
+                className="gap-2"
+              >
+                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {isDark ? 'Light' : 'Dark'}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -130,8 +253,8 @@ export function ProfilePage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-secondary rounded-lg">
-                <Database className="h-6 w-6 text-primary" />
+              <div className="p-2 bg-timber-300/10 rounded-lg">
+                <Database className="h-6 w-6 text-timber-300" />
               </div>
               <div>
                 <CardTitle>Library Statistics</CardTitle>
@@ -144,12 +267,14 @@ export function ProfilePage() {
               <div className="grid gap-6 sm:grid-cols-2">
                 <div className="space-y-1">
                   <span className="text-sm font-medium text-muted-foreground">Total Items</span>
-                  <div className="text-3xl font-bold">{totalCount}</div>
+                  <div className="text-3xl font-bold">
+                    <CountUp to={totalCount} duration={1.5} />
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <span className="text-sm font-medium text-muted-foreground">Average Rating</span>
                   <div className="text-3xl font-bold">
-                    {Math.round(stats.overall?.average_rating || 0)}
+                    <CountUp to={Math.round(stats.overall?.average_rating || 0)} duration={1.5} />
                     <span className="text-base font-normal text-muted-foreground"> / 100</span>
                   </div>
                 </div>
@@ -172,30 +297,30 @@ export function ProfilePage() {
                   <div className="space-y-1">
                     <div className="flex justify-between text-sm">
                       <span className="flex items-center gap-1.5"><Film className="h-3.5 w-3.5" /> Movies</span>
-                      <span className="font-medium">{movieCount}</span>
+                      <span className="font-medium"><CountUp to={movieCount} duration={1.5} /></span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500" style={{ width: `${(movieCount / Math.max(totalCount, 1)) * 100}%` }} />
+                      <div className="h-full bg-timber-300 transition-all duration-1000" style={{ width: `${(movieCount / Math.max(totalCount, 1)) * 100}%` }} />
                     </div>
                   </div>
 
                   <div className="space-y-1">
                     <div className="flex justify-between text-sm">
                       <span className="flex items-center gap-1.5"><Tv className="h-3.5 w-3.5" /> TV Shows</span>
-                      <span className="font-medium">{showCount}</span>
+                      <span className="font-medium"><CountUp to={showCount} duration={1.5} /></span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-green-500" style={{ width: `${(showCount / Math.max(totalCount, 1)) * 100}%` }} />
+                      <div className="h-full bg-leaf-500 transition-all duration-1000" style={{ width: `${(showCount / Math.max(totalCount, 1)) * 100}%` }} />
                     </div>
                   </div>
 
                   <div className="space-y-1">
                     <div className="flex justify-between text-sm">
                       <span className="flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5" /> Books</span>
-                      <span className="font-medium">{bookCount}</span>
+                      <span className="font-medium"><CountUp to={bookCount} duration={1.5} /></span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-amber-500" style={{ width: `${(bookCount / Math.max(totalCount, 1)) * 100}%` }} />
+                      <div className="h-full bg-timber-600 transition-all duration-1000" style={{ width: `${(bookCount / Math.max(totalCount, 1)) * 100}%` }} />
                     </div>
                   </div>
                 </div>
@@ -206,6 +331,158 @@ export function ProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Public Profile Settings */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-4">
+            <div className="p-2 bg-timber-300/10 rounded-lg">
+              <Globe className="h-6 w-6 text-timber-300" />
+            </div>
+            <div>
+              <CardTitle>Public Profile</CardTitle>
+              <CardDescription>Control how others see your library</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {profileToast && (
+            <div className={`rounded-md px-3 py-2 text-sm ${
+              profileToast.type === 'success'
+                ? 'bg-emerald-600/15 text-emerald-500'
+                : 'bg-destructive/15 text-destructive'
+            }`}>
+              {profileToast.message}
+            </div>
+          )}
+
+          {/* Username */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Username</Label>
+            {usernameEditing ? (
+              <div className="flex gap-2">
+                <Input
+                  value={usernameInput}
+                  onChange={(e) => setUsernameInput(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 30))}
+                  placeholder="your_username"
+                  className="max-w-xs"
+                />
+                <Button size="sm" onClick={handleSaveUsername} disabled={profileSaving}>
+                  {profileSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { setUsernameEditing(false); setUsernameInput(profileUsername) }}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-mono">{profileUsername || 'Not set'}</span>
+                {profileUsername && (
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => {
+                    navigator.clipboard.writeText(profileUsername)
+                    setUsernameCopied(true)
+                    setTimeout(() => setUsernameCopied(false), 2000)
+                  }}>
+                    {usernameCopied ? <><Check className="h-3.5 w-3.5 mr-1" /> Copied</> : <><LinkIcon className="h-3.5 w-3.5 mr-1" /> Copy</>}
+                  </Button>
+                )}
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setUsernameEditing(true)}>
+                  Edit
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">3-30 characters, letters, numbers, and underscores only.</p>
+          </div>
+
+          {/* Public Toggle */}
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div>
+              <p className="text-sm font-medium">Public Library</p>
+              <p className="text-xs text-muted-foreground">Allow others to search for and view your library</p>
+            </div>
+            <Button
+              variant={isPublic ? 'default' : 'outline'}
+              size="sm"
+              onClick={handleTogglePublic}
+              disabled={profileSaving || profileLoading}
+              className="min-w-[80px]"
+            >
+              {isPublic ? (
+                <><Eye className="mr-1.5 h-3.5 w-3.5" /> Public</>
+              ) : (
+                <><EyeOff className="mr-1.5 h-3.5 w-3.5" /> Private</>
+              )}
+            </Button>
+          </div>
+
+          {isPublic && (
+            <>
+              {/* Field visibility toggles */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Visibility Controls</Label>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-medium">Avatar</p>
+                    <p className="text-xs text-muted-foreground">Show your avatar on your public profile</p>
+                  </div>
+                  <Button
+                    variant={showAvatar ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => handleToggleField('show_avatar', showAvatar)}
+                    disabled={profileSaving}
+                  >
+                    {showAvatar ? <><Eye className="mr-1.5 h-3.5 w-3.5" /> Shown</> : <><EyeOff className="mr-1.5 h-3.5 w-3.5" /> Hidden</>}
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-medium">Ratings</p>
+                    <p className="text-xs text-muted-foreground">Show your ratings on public library items</p>
+                  </div>
+                  <Button
+                    variant={showRatings ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => handleToggleField('show_ratings', showRatings)}
+                    disabled={profileSaving}
+                  >
+                    {showRatings ? <><Eye className="mr-1.5 h-3.5 w-3.5" /> Shown</> : <><EyeOff className="mr-1.5 h-3.5 w-3.5" /> Hidden</>}
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-medium">Reviews</p>
+                    <p className="text-xs text-muted-foreground">Show your written reviews on public library items</p>
+                  </div>
+                  <Button
+                    variant={showReviews ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => handleToggleField('show_reviews', showReviews)}
+                    disabled={profileSaving}
+                  >
+                    {showReviews ? <><Eye className="mr-1.5 h-3.5 w-3.5" /> Shown</> : <><EyeOff className="mr-1.5 h-3.5 w-3.5" /> Hidden</>}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Copy Profile Link */}
+              {profileUsername && (
+                <div className="flex items-center gap-3 pt-1">
+                  <code className="text-xs bg-muted px-2 py-1 rounded truncate max-w-[300px]">
+                    {window.location.origin}/u/{profileUsername}
+                  </code>
+                  <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={handleCopyLink}>
+                    {linkCopied ? (
+                      <><Check className="h-3.5 w-3.5" /> Copied</>
+                    ) : (
+                      <><LinkIcon className="h-3.5 w-3.5" /> Copy Link</>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Top Genres */}
       {stats && stats.top_genres && stats.top_genres.length > 0 && (
@@ -230,12 +507,16 @@ export function ProfilePage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500/10 rounded-lg">
-                <Sparkles className="h-5 w-5 text-purple-500" />
+              <div className="p-2 bg-timber-300/10 rounded-lg">
+                <Sparkles className="h-5 w-5 text-timber-300" />
               </div>
               <div>
                 <CardTitle>AI Taste Profile</CardTitle>
-                <CardDescription>Gemini-powered analysis of your media habits</CardDescription>
+                <CardDescription>
+                  {insightsUpdatedAt
+                    ? `Last generated ${new Date(insightsUpdatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+                    : 'Gemini-powered analysis of your media habits'}
+                </CardDescription>
               </div>
             </div>
             <Button

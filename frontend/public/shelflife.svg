@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#2a1c10"/>
+  <!-- Side brackets -->
+  <rect x="12" y="18" width="3" height="30" rx="1" fill="#d4a053"/>
+  <rect x="49" y="18" width="3" height="30" rx="1" fill="#d4a053"/>
+  <!-- Shelves -->
+  <rect x="12" y="18" width="40" height="3" rx="1" fill="#d4a053"/>
+  <rect x="12" y="32" width="40" height="3" rx="1" fill="#d4a053"/>
+  <rect x="12" y="45" width="40" height="3" rx="1" fill="#d4a053"/>
+  <!-- Books - top shelf -->
+  <rect x="17" y="21" width="4" height="11" rx="1" fill="#c08a3e"/>
+  <rect x="22" y="22" width="5" height="10" rx="1" fill="#a67332"/>
+  <rect x="28" y="21" width="4" height="11" rx="1" fill="#8a5e28"/>
+  <rect x="33" y="23" width="5" height="9" rx="1" fill="#c08a3e"/>
+  <rect x="39" y="21" width="4" height="11" rx="1" fill="#6e4a20"/>
+  <!-- Books - bottom shelf -->
+  <rect x="17" y="35" width="5" height="10" rx="1" fill="#a67332"/>
+  <rect x="23" y="36" width="4" height="9" rx="1" fill="#c08a3e"/>
+  <rect x="28" y="35" width="6" height="10" rx="1" fill="#8a5e28"/>
+  <rect x="35" y="36" width="4" height="9" rx="1" fill="#6e4a20"/>
+  <rect x="40" y="35" width="5" height="10" rx="1" fill="#a67332"/>
+</svg>

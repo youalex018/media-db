@@ -49,8 +49,42 @@ export default {
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
-  			}
-  		}
+  			},
+  			timber: {
+  				50: '#fdf8f0',
+  				100: '#f5e6ce',
+  				200: '#e8c99a',
+  				300: '#d4a053',
+  				400: '#c08a3e',
+  				500: '#a67332',
+  				600: '#8a5e28',
+  				700: '#6e4a20',
+  				800: '#533818',
+  				900: '#3a2810',
+  				950: '#1a1410',
+  			},
+  			leaf: {
+  				400: '#4ade80',
+  				500: '#22c55e',
+  				600: '#16a34a',
+  			},
+  		},
+  		keyframes: {
+  			'float': {
+  				'0%, 100%': { transform: 'translateY(0)' },
+  				'50%': { transform: 'translateY(-6px)' },
+  			},
+  			'dust': {
+  				'0%': { transform: 'translateY(0) translateX(0)', opacity: 0 },
+  				'20%': { opacity: 0.6 },
+  				'80%': { opacity: 0.4 },
+  				'100%': { transform: 'translateY(-80px) translateX(20px)', opacity: 0 },
+  			},
+  		},
+  		animation: {
+  			'float': 'float 6s ease-in-out infinite',
+  			'dust': 'dust 8s ease-in-out infinite',
+  		},
   	}
   },
   plugins: [require("tailwindcss-animate")],

@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Film, BookOpen, Tv, Star, BarChart2, Library } from 'lucide-react'
+import { ShelfIcon } from '@/components/ShelfIcon'
 
 const FEATURES = [
   { icon: Film, label: 'Movies', description: "Track every film you've watched or want to watch" },
@@ -15,6 +16,36 @@ const FEATURES = [
   { icon: BarChart2, label: 'Stats', description: 'Visualise your ratings and consumption habits' },
   { icon: Library, label: 'Your Library', description: 'One unified shelf for all your media' },
 ]
+
+function DustMotes() {
+  const motes = Array.from({ length: 8 }, (_, i) => ({
+    id: i,
+    left: `${10 + Math.random() * 80}%`,
+    delay: `${Math.random() * 8}s`,
+    duration: `${7 + Math.random() * 5}s`,
+    size: 2 + Math.random() * 2,
+    startY: `${25 + Math.random() * 50}%`,
+  }))
+
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {motes.map((m) => (
+        <div
+          key={m.id}
+          className="absolute rounded-full bg-timber-300/40 animate-dust"
+          style={{
+            left: m.left,
+            top: m.startY,
+            width: m.size,
+            height: m.size,
+            animationDelay: m.delay,
+            animationDuration: m.duration,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
 
 export function AuthPage() {
   const [email, setEmail] = useState('')
@@ -61,49 +92,39 @@ export function AuthPage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#0a0f1e]">
+    <div className="relative min-h-screen overflow-hidden bg-timber-950">
 
-      {/* Decorative background blobs */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-40 -top-40 h-[600px] w-[600px] rounded-full bg-cyan-600/20 blur-[120px]" />
-        <div className="absolute -bottom-40 -right-40 h-[500px] w-[500px] rounded-full bg-indigo-600/20 blur-[120px]" />
-        <div className="absolute left-1/2 top-1/3 h-[400px] w-[400px] -translate-x-1/2 rounded-full bg-violet-600/10 blur-[100px]" />
-        {/* Subtle dot grid */}
-        <svg className="absolute inset-0 h-full w-full opacity-[0.06]" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-              <circle cx="1" cy="1" r="1" fill="white" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#dots)" />
-        </svg>
+      {/* Warm radial lamp glow */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-[15%] h-[600px] w-[800px] -translate-x-1/2 rounded-full bg-timber-300/[0.04] blur-[100px]" />
+        <div className="absolute bottom-0 left-0 right-0 h-[200px] bg-timber-950" />
       </div>
 
+      <DustMotes />
+
       {/* Page layout */}
-      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-12 px-4 py-16 lg:flex-row lg:items-start lg:justify-center lg:gap-20 lg:pt-24">
+      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-12 px-4 py-16 lg:flex-row lg:items-start lg:justify-center lg:gap-20 lg:pt-28">
 
         {/* Left — branding + features */}
-        <div className="flex max-w-md flex-col gap-8 text-white">
+        <div className="flex max-w-md flex-col gap-8 text-timber-100">
           {/* Logo mark */}
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-indigo-500 shadow-lg">
-              <span className="text-xl font-black text-white">M</span>
-            </div>
+            <ShelfIcon className="h-12 w-12" />
             <div>
-              <h1 className="text-2xl font-extrabold tracking-tight">Media DB</h1>
-              <p className="text-xs font-medium text-cyan-300/80">Your personal media shelf</p>
+              <h1 className="text-3xl font-extrabold tracking-tight">Shelflife</h1>
+              <p className="text-xs font-medium text-timber-100/50">Your personal media shelf</p>
             </div>
           </div>
 
           {/* Tagline */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <h2 className="text-4xl font-bold leading-tight tracking-tight lg:text-5xl">
               One place for every
-              <span className="block bg-gradient-to-r from-cyan-400 to-indigo-400 bg-clip-text text-transparent">
+              <span className="block text-timber-300">
                 story you love.
               </span>
             </h2>
-            <p className="text-base text-slate-300">
+            <p className="text-base text-timber-100/60">
               Track, rate, and review every movie, show, and book — all in one personal library.
             </p>
           </div>
@@ -113,13 +134,15 @@ export function AuthPage() {
             {FEATURES.map(({ icon: Icon, label, description }) => (
               <div
                 key={label}
-                className="flex flex-col gap-1.5 rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm"
+                className="rounded-xl border border-timber-100/[0.06] bg-timber-100/[0.02] p-3"
               >
-                <div className="flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-cyan-400" />
-                  <span className="text-sm font-semibold">{label}</span>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <Icon className="h-4 w-4 text-timber-300" />
+                    <span className="text-sm font-semibold">{label}</span>
+                  </div>
+                  <p className="text-xs leading-relaxed text-timber-100/40">{description}</p>
                 </div>
-                <p className="text-xs leading-relaxed text-slate-400">{description}</p>
               </div>
             ))}
           </div>
@@ -127,23 +150,23 @@ export function AuthPage() {
 
         {/* Right — auth card */}
         <div className="w-full max-w-md">
-          <Card className="border-white/10 bg-white/5 backdrop-blur-md text-white shadow-2xl">
+          <Card className="border-timber-100/[0.06] bg-timber-100/[0.03] backdrop-blur-xl text-timber-100 shadow-2xl shadow-black/20">
             <CardHeader className="pb-2">
-              <CardTitle className="text-xl text-white">
+              <CardTitle className="text-xl text-timber-100">
                 {mode === 'otp' ? 'Magic Link Login' : isSignUp ? 'Create Account' : 'Welcome back'}
               </CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardDescription className="text-timber-100/40">
                 {isSignUp ? 'Start building your personal library.' : 'Sign in to access your library.'}
               </CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-5">
               <Tabs value={mode} onValueChange={(v) => setMode(v as any)} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 bg-white/10">
-                  <TabsTrigger value="password" className="data-[state=active]:bg-white/20 data-[state=active]:text-white text-slate-400">
+                <TabsList className="grid w-full grid-cols-2 bg-timber-100/[0.05]">
+                  <TabsTrigger value="password" className="data-[state=active]:bg-timber-100/[0.1] data-[state=active]:text-timber-100 text-timber-100/40">
                     Password
                   </TabsTrigger>
-                  <TabsTrigger value="otp" className="data-[state=active]:bg-white/20 data-[state=active]:text-white text-slate-400">
+                  <TabsTrigger value="otp" className="data-[state=active]:bg-timber-100/[0.1] data-[state=active]:text-timber-100 text-timber-100/40">
                     Magic Link
                   </TabsTrigger>
                 </TabsList>
@@ -151,7 +174,7 @@ export function AuthPage() {
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-slate-300">Email</Label>
+                  <Label htmlFor="email" className="text-timber-100/70">Email</Label>
                   <Input
                     id="email"
                     type="email"
@@ -159,18 +182,18 @@ export function AuthPage() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="border-white/20 bg-white/10 text-white placeholder:text-slate-500 focus-visible:ring-cyan-500"
+                    className="border-timber-100/[0.08] bg-timber-100/[0.04] text-timber-100 placeholder:text-timber-100/25 focus-visible:ring-timber-300"
                   />
                 </div>
 
                 {mode === 'password' && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="password" className="text-slate-300">Password</Label>
+                      <Label htmlFor="password" className="text-timber-100/70">Password</Label>
                       {!isSignUp && (
                         <Button
                           variant="link"
-                          className="h-auto p-0 text-xs text-cyan-400 hover:text-cyan-300"
+                          className="h-auto p-0 text-xs text-timber-300 hover:text-timber-200"
                           type="button"
                           onClick={() => {
                             supabase.auth.resetPasswordForEmail(email).then(({ error }) => {
@@ -189,20 +212,20 @@ export function AuthPage() {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="border-white/20 bg-white/10 text-white placeholder:text-slate-500 focus-visible:ring-cyan-500"
+                      className="border-timber-100/[0.08] bg-timber-100/[0.04] text-timber-100 placeholder:text-timber-100/25 focus-visible:ring-timber-300"
                     />
                   </div>
                 )}
 
                 {message && (
-                  <div className={`rounded p-2 text-sm ${message.startsWith('Error') ? 'bg-red-500/20 text-red-300' : 'bg-cyan-500/20 text-cyan-300'}`}>
+                  <div className={`rounded-lg p-3 text-sm ${message.startsWith('Error') ? 'bg-red-500/15 text-red-300 border border-red-500/20' : 'bg-timber-300/15 text-timber-300 border border-timber-300/20'}`}>
                     {message}
                   </div>
                 )}
 
                 <Button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-cyan-500 to-indigo-500 font-semibold text-white hover:from-cyan-400 hover:to-indigo-400"
+                  className="w-full bg-timber-300 font-semibold text-timber-950 hover:bg-timber-200"
                   disabled={loading}
                 >
                   {loading ? 'Loading...' : mode === 'otp' ? 'Send Magic Link' : isSignUp ? 'Sign Up' : 'Sign In'}
@@ -210,11 +233,11 @@ export function AuthPage() {
               </form>
 
               {mode === 'password' && (
-                <p className="text-center text-sm text-slate-400">
+                <p className="text-center text-sm text-timber-100/40">
                   {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
                   <Button
                     variant="link"
-                    className="h-auto p-0 text-cyan-400 underline hover:text-cyan-300"
+                    className="h-auto p-0 text-timber-300 underline hover:text-timber-200"
                     onClick={() => setIsSignUp(!isSignUp)}
                   >
                     {isSignUp ? 'Sign In' : 'Sign Up'}
@@ -226,15 +249,15 @@ export function AuthPage() {
             <CardFooter className="flex flex-col gap-4">
               <div className="relative w-full">
                 <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-white/10" />
+                  <span className="w-full border-t border-timber-100/[0.06]" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-transparent px-2 text-slate-500">Or continue with</span>
+                  <span className="bg-transparent px-2 text-timber-100/25">Or continue with</span>
                 </div>
               </div>
               <Button
                 variant="outline"
-                className="w-full border-white/20 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+                className="w-full border-timber-100/[0.08] bg-timber-100/[0.03] text-timber-100/60 hover:bg-timber-100/[0.06] hover:text-timber-100"
                 onClick={handleDevLogin}
               >
                 Dev Bypass (Fake Login)

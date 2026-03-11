@@ -4,6 +4,13 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
+// API base URL: empty in dev (Vite proxy handles /api), set in prod (e.g. https://your-api.onrender.com)
+const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+
+function apiUrl(path: string): string {
+  return `${apiBase}${path.startsWith('/') ? path : '/' + path}`
+}
+
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
 export type WorkType = 'movie' | 'show' | 'book' | 'all';
@@ -216,7 +223,7 @@ export const api = {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
     
-    const res = await fetch(`/api/search?${params.toString()}`, { headers });
+    const res = await fetch(apiUrl(`/api/search?${params.toString()}`), { headers });
     
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) {
@@ -317,7 +324,7 @@ export const api = {
         rating: 0
     };
     
-    const res = await fetch('/api/library/add', {
+    const res = await fetch(apiUrl('/api/library/add'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -623,7 +630,7 @@ export const api = {
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) return null;
 
-    const res = await fetch('/api/profile/stats', {
+    const res = await fetch(apiUrl('/api/profile/stats'), {
         headers: { 'Authorization': `Bearer ${session.access_token}` },
     });
 
@@ -641,7 +648,7 @@ export const api = {
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) return { insights: null, updated_at: null };
 
-    const res = await fetch('/api/profile/insights', {
+    const res = await fetch(apiUrl('/api/profile/insights'), {
         headers: { 'Authorization': `Bearer ${session.access_token}` },
     });
 
@@ -655,7 +662,7 @@ export const api = {
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) throw new Error('Not authenticated');
 
-    const res = await fetch('/api/profile/insights', {
+    const res = await fetch(apiUrl('/api/profile/insights'), {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}` },
     });
@@ -683,7 +690,7 @@ export const api = {
       params.set('library_only', 'true');
     }
 
-    const res = await fetch(`/api/recommendations?${params.toString()}`, {
+    const res = await fetch(apiUrl(`/api/recommendations?${params.toString()}`), {
       headers: {
         'Authorization': `Bearer ${session.access_token}`,
       },
@@ -729,7 +736,7 @@ export const api = {
     const token = await getAuthToken();
     if (!token) return [];
 
-    const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
+    const res = await fetch(apiUrl(`/api/users/search?q=${encodeURIComponent(query)}`), {
       headers: { 'Authorization': `Bearer ${token}` },
     });
     if (!res.ok) {
@@ -747,7 +754,7 @@ export const api = {
   },
 
   getPublicLibrary: async (username: string): Promise<PublicLibraryResponse | null> => {
-    const res = await fetch(`/api/library/${encodeURIComponent(username)}`);
+    const res = await fetch(apiUrl(`/api/library/${encodeURIComponent(username)}`));
     if (!res.ok) return null;
     const data = await res.json();
     return {
@@ -779,7 +786,7 @@ export const api = {
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) throw new Error('Not authenticated');
 
-    const res = await fetch('/api/profile', {
+    const res = await fetch(apiUrl('/api/profile'), {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',

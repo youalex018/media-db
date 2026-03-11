@@ -15,10 +15,13 @@ __pycache__/
 tools/cpp/build/
 build/
 
-# env & local
+# env & local (never commit secrets)
 .env
 .env.*
+.env.local
+.env.production
 !*.example
+!*.template
 
 # OS/editor
 .DS_Store

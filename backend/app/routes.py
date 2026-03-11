@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from .auth import get_current_user
+from .config import get_config
 from .db import get_supabase_client
 from .embeddings import backfill_embeddings, circuit_breaker_status, compute_work_embedding
 from .external_sources import (
@@ -40,6 +41,13 @@ STRIP_HTML_RE = re.compile(r'<[^>]+>')
 def _escape_ilike_pattern(value: str) -> str:
     """Escape % and _ for safe use in ILIKE (exact match, case-insensitive)."""
     return value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
+
+def _safe_error_detail(exc: Exception, max_len: int = 200) -> str | None:
+    """Return exception message for client only in development. Production: None."""
+    if get_config().FLASK_ENV == 'production':
+        return None
+    return str(exc)[:max_len] if exc else None
 MAX_USER_SEARCH_RESULTS = 20
 
 router = APIRouter()
@@ -428,10 +436,10 @@ async def add_to_library(request: Request, user=Depends(get_current_user)):
             notes=data.get('notes'),
         )
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={'error': str(exc)}
-        )
+        detail = {'error': 'validation_error'}
+        if safe := _safe_error_detail(exc):
+            detail['details'] = safe
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
 
     return {
         'work': work,
@@ -738,10 +746,10 @@ async def get_recommendations(request: Request, user=Depends(get_current_user)):
             mode=mode,
         )
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={'error': 'recommendation_failed', 'details': str(exc)[:200]},
-        )
+        detail = {'error': 'recommendation_failed'}
+        if safe := _safe_error_detail(exc):
+            detail['details'] = safe
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
 
     return {
         'seed_work_id': seed_id,
@@ -807,10 +815,10 @@ async def trigger_backfill(request: Request, user=Depends(get_current_user)):
     try:
         result = backfill_embeddings(batch_size=batch_size)
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={'error': 'backfill_failed', 'details': str(exc)[:200]},
-        )
+        detail = {'error': 'backfill_failed'}
+        if safe := _safe_error_detail(exc):
+            detail['details'] = safe
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
 
     return {
         'result': result,

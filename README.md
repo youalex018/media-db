@@ -231,6 +231,7 @@ See [`docs/TESTING.md`](docs/TESTING.md) for comprehensive testing guide.
 
 ## Documentation
 
+- **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Production deployment (Vercel, Render, Supabase)
 - **[TESTING.md](docs/TESTING.md)** - Complete testing guide
 - **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 - **[DATABASE_SETUP.md](docs/DATABASE_SETUP.md)** - Database setup guide  

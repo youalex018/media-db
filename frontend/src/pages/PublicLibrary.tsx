@@ -50,14 +50,24 @@ export function PublicLibraryPage() {
     if (!username) return
     setLoading(true)
     setNotFound(false)
-    api.getPublicLibrary(username).then((result) => {
-      if (!result) {
-        setNotFound(true)
-      } else {
-        setData(result)
-      }
-      setLoading(false)
-    })
+    api
+      .getPublicLibrary(username)
+      .then((result) => {
+        if (!result) {
+          setNotFound(true)
+        } else {
+          setData(result)
+        }
+      })
+      .catch((err: { status?: number; response?: { status?: number } }) => {
+        const status = err?.response?.status ?? err?.status
+        if (status === 404) {
+          setNotFound(true)
+        } else {
+          setToast({ type: 'error', message: 'Failed to load library' })
+        }
+      })
+      .finally(() => setLoading(false))
   }, [username])
 
   const handleClone = async (item: PublicLibraryItem) => {

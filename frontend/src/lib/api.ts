@@ -11,6 +11,25 @@ function apiUrl(path: string): string {
   return `${apiBase}${path.startsWith('/') ? path : '/' + path}`
 }
 
+async function readErrorMessage(res: Response): Promise<string> {
+  const contentType = res.headers.get('content-type') || ''
+  try {
+    if (contentType.includes('application/json')) {
+      const err = await res.json()
+      return err?.detail?.message || err?.detail?.error || err?.message || `Request failed (${res.status})`
+    }
+
+    const text = await res.text()
+    // Common in deployed apps when /api isn't routed to the backend.
+    if (text && text.trim().startsWith('<')) {
+      return `Request failed (${res.status}). Received HTML instead of JSON. Check your API routing or VITE_API_BASE_URL.`
+    }
+    return text?.slice(0, 200) || `Request failed (${res.status})`
+  } catch {
+    return `Request failed (${res.status})`
+  }
+}
+
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
 export type WorkType = 'movie' | 'show' | 'book' | 'all';
@@ -697,8 +716,7 @@ export const api = {
     });
 
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail?.error || 'Failed to get recommendations');
+      throw new Error(await readErrorMessage(res));
     }
 
     const data = await res.json();
@@ -716,15 +734,14 @@ export const api = {
     if (filters.language) params.set('language', filters.language);
     if (filters.type) params.set('type', filters.type);
 
-    const res = await fetch(`/api/recommendations/tonight?${params.toString()}`, {
+    const res = await fetch(apiUrl(`/api/recommendations/tonight?${params.toString()}`), {
       headers: {
         'Authorization': `Bearer ${session.access_token}`,
       },
     });
 
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail?.error || 'Failed to get tonight picks');
+      throw new Error(await readErrorMessage(res));
     }
 
     const data = await res.json();

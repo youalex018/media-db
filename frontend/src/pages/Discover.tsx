@@ -8,6 +8,44 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2, Sparkles, Clock, Film, Tv, BookOpen, RefreshCw, Info } from 'lucide-react'
 
+const languageTag = (codeRaw: string | null | undefined): string | null => {
+  const code = (codeRaw || '').toLowerCase()
+  if (!code) return null
+  const map: Record<string, string> = {
+    en: '🇺🇸',
+    ko: '🇰🇷',
+    ja: '🇯🇵',
+    zh: '🇨🇳',
+    es: '🇪🇸',
+    fr: '🇫🇷',
+    de: '🇩🇪',
+    it: '🇮🇹',
+    pt: '🇵🇹',
+    ru: '🇷🇺',
+    hi: '🇮🇳',
+  }
+  if (map[code]) return map[code]
+  return code.length <= 3 ? code.toUpperCase() : code.slice(0, 3).toUpperCase()
+}
+
+const languageName = (codeRaw: string): string => {
+  const code = (codeRaw || '').trim().toLowerCase()
+  const map: Record<string, string> = {
+    en: 'English',
+    ko: 'Korean',
+    ja: 'Japanese',
+    zh: 'Chinese',
+    es: 'Spanish',
+    fr: 'French',
+    de: 'German',
+    it: 'Italian',
+    pt: 'Portuguese',
+    ru: 'Russian',
+    hi: 'Hindi',
+  }
+  return map[code] || code.toUpperCase()
+}
+
 function RecommendationCard({ rec, onClick }: { rec: Recommendation; onClick: () => void }) {
   const work = rec.work
   if (!work) return null
@@ -36,10 +74,17 @@ function RecommendationCard({ rec, onClick }: { rec: Recommendation; onClick: ()
             <h3 className="font-semibold text-sm leading-tight line-clamp-2 group-hover:text-primary transition-colors">
               {work.title}
             </h3>
-            <Badge variant="outline" className="flex-shrink-0 gap-1 text-xs">
-              {typeIcon}
-              {work.year}
-            </Badge>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {languageTag((work as any).language_code) && (
+                <Badge variant="outline" className="gap-1 text-xs">
+                  {languageTag((work as any).language_code)}
+                </Badge>
+              )}
+              <Badge variant="outline" className="gap-1 text-xs">
+                {typeIcon}
+                {work.year}
+              </Badge>
+            </div>
           </div>
 
           {work.genres && work.genres.length > 0 && (
@@ -86,6 +131,15 @@ export function DiscoverPage() {
   const [tonightLoading, setTonightLoading] = useState(false)
   const [tonightError, setTonightError] = useState<string | null>(null)
 
+  const availableLanguages = [
+    ...new Set(
+      tonightPicks
+        .map((rec) => (rec.work as any)?.language_code)
+        .filter((lang) => typeof lang === 'string' && lang.trim())
+        .map((lang: string) => lang.trim().toLowerCase())
+    ),
+  ].sort((a, b) => a.localeCompare(b))
+
   const [filters, setFilters] = useState<TonightFilters>({
     limit: 3,
     type: undefined,
@@ -93,6 +147,11 @@ export function DiscoverPage() {
     language: undefined,
   })
   const [maxDurationInput, setMaxDurationInput] = useState('')
+
+  useEffect(() => {
+    // Keep the text input in sync with the active filter.
+    setMaxDurationInput(filters.max_duration ? String(filters.max_duration) : '')
+  }, [filters.max_duration])
 
   const loadTonightPicks = useCallback(async () => {
     setTonightLoading(true)
@@ -200,13 +259,11 @@ export function DiscoverPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="any">Any</SelectItem>
-                <SelectItem value="en">English</SelectItem>
-                <SelectItem value="es">Spanish</SelectItem>
-                <SelectItem value="fr">French</SelectItem>
-                <SelectItem value="de">German</SelectItem>
-                <SelectItem value="ja">Japanese</SelectItem>
-                <SelectItem value="ko">Korean</SelectItem>
-                <SelectItem value="zh">Chinese</SelectItem>
+                {availableLanguages.map((lang) => (
+                  <SelectItem key={lang} value={lang}>
+                    {languageName(lang)}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

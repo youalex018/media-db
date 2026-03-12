@@ -42,6 +42,7 @@ export interface Work {
   poster: string;
   overview: string;
   genres?: string[];
+  language_code?: string | null;
   // External source info for adding to library
   source?: {
       provider: 'tmdb' | 'openlibrary';
@@ -69,6 +70,7 @@ export interface LibraryFilters {
   tags?: string[];
   genres?: string[];
   minRating?: number;
+  language?: string | null;
 }
 
 export interface Recommendation {
@@ -116,6 +118,7 @@ export interface PublicLibraryItem {
   type: string;
   poster_url: string | null;
   overview: string | null;
+  language_code: string | null;
   genres: string[];
   status: string;
   rating: number | null;
@@ -260,6 +263,7 @@ export const api = {
         poster: item.poster_url || item.poster,
         overview: item.overview,
         genres: Array.isArray(item.genre_names) ? item.genre_names : [],
+        language_code: item.language_code ?? null,
         source: item.source
     }));
   },
@@ -381,7 +385,7 @@ export const api = {
         .select(`
             *,
             work:works (
-                id, title, year, type, poster_url, overview,
+                id, title, year, type, poster_url, overview, language_code,
                 work_genres (
                     genre:genres (name)
                 )
@@ -420,6 +424,7 @@ export const api = {
           type: work.type,
           poster: work.poster_url,
           overview: work.overview,
+          language_code: work.language_code ?? null,
           status: dbStatusToFrontend(row.status, work.type),
           rating: row.rating,
           review: row.notes, // Map DB notes to frontend review
@@ -468,6 +473,11 @@ export const api = {
       filtered = filtered.filter((item) =>
         (item.genres || []).some((genre) => wantedGenres.has(genre.toLowerCase()))
       );
+    }
+
+    if (typeof filters.language === 'string' && filters.language.trim()) {
+      const wantedLanguage = filters.language.trim().toLowerCase()
+      filtered = filtered.filter((item) => item.language_code && item.language_code.toLowerCase() === wantedLanguage)
     }
 
     return filtered;
@@ -783,6 +793,7 @@ export const api = {
         type: item.type,
         poster_url: item.poster_url,
         overview: item.overview,
+        language_code: item.language_code ?? null,
         genres: item.genres || [],
         status: item.type === 'book'
           ? dbStatusToFrontend(item.status, 'book')

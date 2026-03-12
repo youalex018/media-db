@@ -34,6 +34,44 @@ const spineColor: Record<string, string> = {
   book: 'border-l-timber-600',
 }
 
+const languageTag = (codeRaw: string | null | undefined): string | null => {
+  const code = (codeRaw || '').toLowerCase()
+  if (!code) return null
+  const map: Record<string, string> = {
+    en: '🇺🇸',
+    ko: '🇰🇷',
+    ja: '🇯🇵',
+    zh: '🇨🇳',
+    es: '🇪🇸',
+    fr: '🇫🇷',
+    de: '🇩🇪',
+    it: '🇮🇹',
+    pt: '🇵🇹',
+    ru: '🇷🇺',
+    hi: '🇮🇳',
+  }
+  if (map[code]) return map[code]
+  return code.length <= 3 ? code.toUpperCase() : code.slice(0, 3).toUpperCase()
+}
+
+const languageName = (codeRaw: string): string => {
+  const code = (codeRaw || '').trim().toLowerCase()
+  const map: Record<string, string> = {
+    en: 'English',
+    ko: 'Korean',
+    ja: 'Japanese',
+    zh: 'Chinese',
+    es: 'Spanish',
+    fr: 'French',
+    de: 'German',
+    it: 'Italian',
+    pt: 'Portuguese',
+    ru: 'Russian',
+    hi: 'Hindi',
+  }
+  return map[code] || code.toUpperCase()
+}
+
 const LIBRARY_FILTERS_STORAGE_KEY = 'library-filters-v1'
 
 type StoredLibraryFilters = {
@@ -44,6 +82,7 @@ type StoredLibraryFilters = {
   tags?: string[]
   genres?: string[]
   ratingSort?: 'highest' | 'lowest'
+  language?: string
 }
 
 const readStoredFilters = (): StoredLibraryFilters => {
@@ -70,9 +109,11 @@ export function LibraryPage() {
   const [minRatingFilter, setMinRatingFilter] = useState(stored.minRating || '')
   const [tagFilter, setTagFilter] = useState<string[]>(stored.tags || [])
   const [genreFilter, setGenreFilter] = useState<string[]>(stored.genres || [])
+  const [languageFilter, setLanguageFilter] = useState(stored.language || 'any')
   const [ratingSort, setRatingSort] = useState<'highest' | 'lowest'>(stored.ratingSort || 'highest')
   const [availableTags, setAvailableTags] = useState<string[]>([])
   const [availableGenres, setAvailableGenres] = useState<string[]>([])
+  const [availableLanguages, setAvailableLanguages] = useState<string[]>([])
   const [saveToast, setSaveToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [pageError, setPageError] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, DraftValue>>({})
@@ -93,6 +134,7 @@ export function LibraryPage() {
           tags: tagFilter,
           genres: genreFilter,
           minRating: Number.isNaN(parsedMinRating) ? 0 : Math.max(0, Math.min(100, parsedMinRating)),
+          language: languageFilter === 'any' ? null : languageFilter,
         })
         const tags = await api.getUserTagNames()
         const genreSet = new Set<string>()
@@ -102,12 +144,19 @@ export function LibraryPage() {
           }
         }
         const genres = [...genreSet].sort((a, b) => a.localeCompare(b))
+        const languageSet = new Set<string>()
+        for (const item of data) {
+          const lang = (item.language_code || '').trim()
+          if (lang) languageSet.add(lang.toLowerCase())
+        }
+        const languages = [...languageSet].sort((a, b) => a.localeCompare(b))
         const sorted = [...data].sort((a, b) => (
           ratingSort === 'highest' ? b.rating - a.rating : a.rating - b.rating
         ))
         setItems(sorted)
         setAvailableTags(tags)
         setAvailableGenres(genres)
+        setAvailableLanguages(languages)
       } catch (error: any) {
         setItems([])
         setPageError(error?.message || 'Failed to load library')
@@ -116,7 +165,7 @@ export function LibraryPage() {
       }
     }
     loadLibrary()
-  }, [typeFilter, statusFilter, yearFilter, tagFilter, genreFilter, minRatingFilter, ratingSort])
+  }, [typeFilter, statusFilter, yearFilter, tagFilter, genreFilter, minRatingFilter, ratingSort, languageFilter])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -128,9 +177,10 @@ export function LibraryPage() {
       tags: tagFilter,
       genres: genreFilter,
       ratingSort,
+      language: languageFilter,
     }
     window.sessionStorage.setItem(LIBRARY_FILTERS_STORAGE_KEY, JSON.stringify(payload))
-  }, [typeFilter, statusFilter, yearFilter, minRatingFilter, tagFilter, genreFilter, ratingSort])
+  }, [typeFilter, statusFilter, yearFilter, minRatingFilter, tagFilter, genreFilter, ratingSort, languageFilter])
 
   const getDraft = (item: LibraryItem): DraftValue =>
     drafts[String(item.id)] ?? {
@@ -284,6 +334,22 @@ export function LibraryPage() {
         <h1 className="text-3xl font-bold tracking-tight">Library</h1>
         
         <div className="flex flex-wrap items-center gap-2">
+            {availableLanguages.length > 0 && (
+              <Select value={languageFilter} onValueChange={setLanguageFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Language" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any Language</SelectItem>
+                  {availableLanguages.map((lang) => (
+                    <SelectItem key={lang} value={lang}>
+                      {languageName(lang)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Filter by status" />
@@ -463,7 +529,14 @@ export function LibraryPage() {
                     <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start">
                             <div>
-                                <h3 className="font-semibold truncate hover:underline">{item.title}</h3>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-semibold truncate hover:underline">{item.title}</h3>
+                                  {languageTag(item.language_code) && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                                      {languageTag(item.language_code)}
+                                    </Badge>
+                                  )}
+                                </div>
                                 <p className="text-sm text-muted-foreground">
                                   {item.year} • {titleCase(item.type)}
                                   {visibleGenres.length > 0 ? ` • ${visibleGenres.join(', ')}` : ''}

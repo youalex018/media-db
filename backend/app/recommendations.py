@@ -454,7 +454,7 @@ def tonight_picks(
             continue
         if max_duration and w.get("runtime_minutes") and w["runtime_minutes"] > max_duration:
             continue
-        if language and w.get("language_code") and w["language_code"] != language:
+        if language and w.get("language_code") != language:
             continue
         filtered.append(sw)
         if len(filtered) >= limit:

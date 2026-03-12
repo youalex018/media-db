@@ -7,11 +7,31 @@ import { CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Search as SearchIcon, Plus, Check, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import SpotlightCard from '@/components/reactbits/SpotlightCard'
+
+const languageName = (codeRaw: string): string => {
+  const code = (codeRaw || '').trim().toLowerCase()
+  const map: Record<string, string> = {
+    en: 'English',
+    ko: 'Korean',
+    ja: 'Japanese',
+    zh: 'Chinese',
+    es: 'Spanish',
+    fr: 'French',
+    de: 'German',
+    it: 'Italian',
+    pt: 'Portuguese',
+    ru: 'Russian',
+    hi: 'Hindi',
+  }
+  return map[code] || code.toUpperCase()
+}
 
 export function SearchPage() {
   const [query, setQuery] = useState('')
   const [type, setType] = useState<WorkType>('all')
+  const [language, setLanguage] = useState('any')
   const [results, setResults] = useState<Work[]>([])
   const [loading, setLoading] = useState(false)
   const [addedIds, setAddedIds] = useState<Set<string | number>>(new Set())
@@ -53,6 +73,11 @@ export function SearchPage() {
     }
     doSearch()
   }, [debouncedQuery, type])
+
+  const availableLanguages = [...new Set(results.map((w) => (w.language_code || '').toLowerCase()).filter(Boolean))].sort()
+  const visibleResults = language === 'any'
+    ? results
+    : results.filter((w) => (w.language_code || '').toLowerCase() === language)
 
   const [searchError, setSearchError] = useState<string | null>(null)
   const [addError, setAddError] = useState<string | null>(null)
@@ -124,6 +149,22 @@ export function SearchPage() {
                 <TabsTrigger value="book">Books</TabsTrigger>
               </TabsList>
             </Tabs>
+
+            {availableLanguages.length > 0 && (
+              <Select value={language} onValueChange={setLanguage}>
+                <SelectTrigger className="w-[160px] h-10">
+                  <SelectValue placeholder="Any language" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any language</SelectItem>
+                  {availableLanguages.map((lang) => (
+                    <SelectItem key={lang} value={lang}>
+                      {languageName(lang)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
       </div>
@@ -146,14 +187,14 @@ export function SearchPage() {
         </div>
       )}
 
-      {!loading && results.length === 0 && debouncedQuery && (
+      {!loading && visibleResults.length === 0 && debouncedQuery && (
         <div className="text-center py-12 text-muted-foreground">
           No results found for "{debouncedQuery}"
         </div>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {results.map((work) => (
+        {visibleResults.map((work) => (
           <SpotlightCard key={work.id} className="flex flex-col overflow-hidden">
             <div className="aspect-[2/3] relative bg-muted">
                 {work.poster && <img src={work.poster} alt={work.title} className="object-cover w-full h-full" />}

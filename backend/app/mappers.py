@@ -182,13 +182,20 @@ def normalize_openlibrary_search_doc(doc: Dict[str, Any]) -> Optional[Dict[str, 
     cover_id = doc.get("cover_i")
     cover_edition = doc.get("cover_edition_key")
 
+    language_code = None
+    raw_langs = doc.get("language")
+    if isinstance(raw_langs, list) and raw_langs:
+        first = raw_langs[0]
+        if isinstance(first, str) and first.strip():
+            language_code = first.strip().lower()
+
     return {
         "type": "book",
         "title": doc.get("title"),
         "year": year,
         "overview": None,
         "poster_url": _openlibrary_cover_url(cover_id=cover_id, olid=cover_edition),
-        "language_code": None,
+        "language_code": language_code,
         "source": {
             "provider": "openlibrary",
             "external_id": work_id,
@@ -212,13 +219,28 @@ def map_openlibrary_payload_to_work(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     year = _parse_year(payload.get("first_publish_date"))
 
+    language_code = None
+    raw_langs = payload.get("languages")
+    if isinstance(raw_langs, list) and raw_langs:
+        first = raw_langs[0]
+        # Common shapes:
+        # - {"key": "/languages/eng"}
+        # - "/languages/eng"
+        # - "eng"
+        if isinstance(first, dict):
+            key = first.get("key")
+            if isinstance(key, str) and key.strip():
+                language_code = key.strip().split("/")[-1].lower()
+        elif isinstance(first, str) and first.strip():
+            language_code = first.strip().split("/")[-1].lower()
+
     return {
         "type": "book",
         "title": payload.get("title"),
         "year": year,
         "overview": description,
         "poster_url": _openlibrary_cover_url(cover_id=cover_id),
-        "language_code": None,
+        "language_code": language_code,
         "pages": payload.get("number_of_pages"),
         "openlibrary_id": openlibrary_id,
         "isbn13": _pick_isbn13(payload.get("isbn_13")),

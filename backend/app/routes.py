@@ -160,7 +160,7 @@ async def get_public_library(username: str):
         supabase.table('user_items')
         .select(
             'id, status, rating, notes, created_at, '
-            'works(id, type, title, year, poster_url, overview, tmdb_id, openlibrary_id, '
+            'works(id, type, title, year, poster_url, overview, language_code, tmdb_id, openlibrary_id, '
             'work_genres(genres(name))), '
             'user_item_tags(user_tag_names(name))'
         )
@@ -214,6 +214,7 @@ async def get_public_library(username: str):
             'type': work.get('type'),
             'poster_url': work.get('poster_url'),
             'overview': work.get('overview'),
+            'language_code': work.get('language_code'),
             'genres': genres,
             'status': row.get('status'),
             'rating': row.get('rating', 0) if show_ratings else None,

@@ -21,6 +21,24 @@ const spineColor: Record<string, string> = {
   book: 'border-l-timber-600',
 }
 
+const languageName = (codeRaw: string): string => {
+  const code = (codeRaw || '').trim().toLowerCase()
+  const map: Record<string, string> = {
+    en: 'English',
+    ko: 'Korean',
+    ja: 'Japanese',
+    zh: 'Chinese',
+    es: 'Spanish',
+    fr: 'French',
+    de: 'German',
+    it: 'Italian',
+    pt: 'Portuguese',
+    ru: 'Russian',
+    hi: 'Hindi',
+  }
+  return map[code] || code.toUpperCase()
+}
+
 export function PublicLibraryPage() {
   const { username } = useParams<{ username: string }>()
   const navigate = useNavigate()
@@ -29,6 +47,7 @@ export function PublicLibraryPage() {
   const [notFound, setNotFound] = useState(false)
   const [typeFilter, setTypeFilter] = useState('all')
   const [genreFilter, setGenreFilter] = useState<string[]>([])
+  const [languageFilter, setLanguageFilter] = useState('any')
   const [ratingSort, setRatingSort] = useState<'highest' | 'lowest'>('highest')
   const [clonedKeys, setClonedKeys] = useState<Set<string>>(new Set())
   const [cloningKeys, setCloningKeys] = useState<Set<string>>(new Set())
@@ -158,6 +177,7 @@ export function PublicLibraryPage() {
   const showReviews = profile.show_reviews !== false
 
   const allGenres = [...new Set(items.flatMap((item) => item.genres || []))].sort()
+  const allLanguages = [...new Set(items.map((item) => (item.language_code || '').toLowerCase()).filter(Boolean))].sort()
 
   let filtered = items
   if (typeFilter !== 'all') {
@@ -167,6 +187,9 @@ export function PublicLibraryPage() {
     filtered = filtered.filter((item) =>
       genreFilter.every((g) => (item.genres || []).includes(g))
     )
+  }
+  if (languageFilter !== 'any') {
+    filtered = filtered.filter((item) => (item.language_code || '').toLowerCase() === languageFilter)
   }
   if (showRatings) {
     filtered = [...filtered].sort((a, b) =>
@@ -263,6 +286,25 @@ export function PublicLibraryPage() {
           </Select>
         )}
       </div>
+
+      {allLanguages.length > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Language:</span>
+          <Select value={languageFilter} onValueChange={setLanguageFilter}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any">Any</SelectItem>
+              {allLanguages.map((lang) => (
+                <SelectItem key={lang} value={lang}>
+                  {languageName(lang)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Items */}
       {filtered.length === 0 ? (

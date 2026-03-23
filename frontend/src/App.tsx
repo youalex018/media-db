@@ -69,14 +69,14 @@ function App() {
               </>
           ) : (
               <Route element={<Layout />}>
-                  <Route path="/" element={<Navigate to="/search" replace />} />
+                  <Route path="/" element={<Navigate to="/library" replace />} />
                   <Route path="/search" element={<SearchPage />} />
                   <Route path="/library" element={<LibraryPage />} />
                   <Route path="/library/:id" element={<ItemDetailPage />} />
                   <Route path="/discover" element={<DiscoverPage />} />
                   <Route path="/community" element={<CommunityPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="*" element={<Navigate to="/search" replace />} />
+                  <Route path="*" element={<Navigate to="/library" replace />} />
               </Route>
           )}
         </Routes>

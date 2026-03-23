@@ -672,21 +672,21 @@ export const api = {
     return data.stats;
   },
 
-  getSavedInsights: async (): Promise<{ insights: string | null; updated_at: string | null }> => {
-    if (isDevMode()) return { insights: null, updated_at: null };
+  getSavedInsights: async (): Promise<{ mood: string | null; mood_description: string | null; insights: string | null; updated_at: string | null }> => {
+    if (isDevMode()) return { mood: null, mood_description: null, insights: null, updated_at: null };
     const session = (await supabase.auth.getSession()).data.session;
-    if (!session) return { insights: null, updated_at: null };
+    if (!session) return { mood: null, mood_description: null, insights: null, updated_at: null };
 
     const res = await fetch(apiUrl('/api/profile/insights'), {
         headers: { 'Authorization': `Bearer ${session.access_token}` },
     });
 
-    if (!res.ok) return { insights: null, updated_at: null };
+    if (!res.ok) return { mood: null, mood_description: null, insights: null, updated_at: null };
 
     return await res.json();
   },
 
-  getInsights: async (): Promise<string> => {
+  getInsights: async (): Promise<{ mood: string | null; mood_description: string | null; insights: string }> => {
     if (isDevMode()) throw new Error('AI insights require a real account.');
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) throw new Error('Not authenticated');
@@ -698,11 +698,12 @@ export const api = {
 
     if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.detail?.error || 'Failed to generate insights');
+        const msg = err.detail?.details || err.detail?.message || err.detail?.error;
+        throw new Error(typeof msg === 'string' ? msg : 'Failed to generate insights');
     }
 
     const data = await res.json();
-    return data.insights;
+    return { mood: data.mood ?? null, mood_description: data.mood_description ?? null, insights: data.insights ?? '' };
   },
 
   getRecommendations: async (seedWorkId: number, limit: number = 10, mode: string = 'hybrid', libraryOnly: boolean = false): Promise<Recommendation[]> => {

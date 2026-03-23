@@ -26,7 +26,7 @@ export function ProfilePage() {
   const [user, setUser] = useState<any>(null)
   const [stats, setStats] = useState<ProfileStats | null>(null)
   const [loading, setLoading] = useState(true)
-  const [insights, setInsights] = useState<string | null>(null)
+  const [insights, setInsights] = useState<{ mood: string | null; mood_description: string | null; insights: string } | null>(null)
   const [insightsUpdatedAt, setInsightsUpdatedAt] = useState<string | null>(null)
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [insightsError, setInsightsError] = useState<string | null>(null)
@@ -81,8 +81,8 @@ export function ProfilePage() {
 
         try {
           const saved = await api.getSavedInsights()
-          if (saved.insights) {
-            setInsights(saved.insights)
+          if (saved.insights != null) {
+            setInsights({ mood: saved.mood, mood_description: saved.mood_description, insights: saved.insights })
             setInsightsUpdatedAt(saved.updated_at)
           }
         } catch (e) {
@@ -114,14 +114,27 @@ export function ProfilePage() {
     setInsightsLoading(true)
     setInsightsError(null)
     try {
-      const text = await api.getInsights()
-      setInsights(text)
+      const { mood, mood_description, insights: text } = await api.getInsights()
+      setInsights({ mood, mood_description, insights: text })
       setInsightsUpdatedAt(new Date().toISOString())
     } catch (e: any) {
       setInsightsError(e?.message || 'Failed to generate insights')
     } finally {
       setInsightsLoading(false)
     }
+  }
+
+  const renderWithHighlights = (text: string) => {
+    const parts = text.split(/(\*[^*]+\*)/g)
+    return parts.map((p, i) =>
+      p.startsWith('*') && p.endsWith('*') ? (
+        <mark key={i} className="bg-amber-200/70 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100 px-1 rounded font-medium">
+          {p.slice(1, -1)}
+        </mark>
+      ) : (
+        <span key={i}>{p}</span>
+      )
+    )
   }
 
   const handleTogglePublic = async () => {
@@ -526,7 +539,7 @@ export function ProfilePage() {
               disabled={insightsLoading}
             >
               {insightsLoading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-              {insights ? 'Regenerate' : 'Generate'}
+              {insights?.insights ? 'Regenerate' : 'Generate'}
             </Button>
           </div>
         </CardHeader>
@@ -539,12 +552,23 @@ export function ProfilePage() {
           ) : insightsError ? (
             <p className="text-sm text-destructive">{insightsError}</p>
           ) : insights ? (
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              {insights.split('\n\n').map((paragraph, i) => (
-                <p key={i} className="text-sm leading-relaxed text-muted-foreground">
-                  {paragraph}
-                </p>
-              ))}
+            <div className="space-y-5">
+              {insights.mood && (
+                <div className="rounded-lg bg-timber-300/8 border border-timber-300/20 px-5 py-4 space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-timber-300/70">Your media taste</p>
+                  <p className="text-2xl font-bold tracking-tight text-timber-300">{insights.mood}</p>
+                  {insights.mood_description && (
+                    <p className="text-sm italic text-muted-foreground leading-snug">{insights.mood_description}</p>
+                  )}
+                </div>
+              )}
+              <div className="space-y-3">
+                {insights.insights.split('\n\n').filter(Boolean).map((paragraph, i) => (
+                  <p key={i} className="text-sm leading-relaxed text-muted-foreground">
+                    {renderWithHighlights(paragraph)}
+                  </p>
+                ))}
+              </div>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground py-4 text-center">

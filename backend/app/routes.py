@@ -509,9 +509,72 @@ def _fetch_user_library_for_stats(user_id: str) -> list[dict]:
     return items
 
 
+def _compute_stats_python(library: list[dict]) -> dict:
+    """Pure-Python stats computation — identical output schema to the C++ binary."""
+    from collections import Counter
+    types: dict[str, dict] = {}
+    statuses: dict[str, int] = {}
+    genre_freq: Counter = Counter()
+    overall_count = 0
+    rated_sum = 0.0
+    rated_count = 0
+    highest_rating = 0.0
+    highest_rated = ""
+
+    for item in library:
+        t = item.get("type") or "unknown"
+        r = float(item.get("rating") or 0)
+        s = item.get("status") or ""
+
+        if t not in types:
+            types[t] = {"count": 0, "rated_count": 0, "rated_sum": 0.0}
+        types[t]["count"] += 1
+        overall_count += 1
+
+        if s:
+            statuses[s] = statuses.get(s, 0) + 1
+
+        if r > 0:
+            types[t]["rated_count"] += 1
+            types[t]["rated_sum"] += r
+            rated_sum += r
+            rated_count += 1
+            if r > highest_rating:
+                highest_rating = r
+                highest_rated = item.get("title") or ""
+
+        for g in item.get("genres") or []:
+            genre_freq[g] += 1
+
+    types_out = {
+        k: {
+            "count": v["count"],
+            "rated_count": v["rated_count"],
+            "average_rating": round(v["rated_sum"] / v["rated_count"], 2) if v["rated_count"] else 0.0,
+        }
+        for k, v in types.items()
+    }
+    top_genres = [
+        {"name": name, "count": count}
+        for name, count in genre_freq.most_common(10)
+    ]
+    return {
+        "types": types_out,
+        "statuses": statuses,
+        "top_genres": top_genres,
+        "overall": {
+            "count": overall_count,
+            "rated_count": rated_count,
+            "average_rating": round(rated_sum / rated_count, 2) if rated_count else 0.0,
+            "highest_rating": highest_rating,
+            "highest_rated": highest_rated,
+        },
+    }
+
+
 @router.get('/profile/stats')
 async def profile_stats(user=Depends(get_current_user)):
-    """Compute library statistics by reading the user's library and piping it through the C++ tool."""
+    """Compute library statistics. Uses the C++ binary when available, falls back to Python."""
     library = _fetch_user_library_for_stats(user['user_id'])
     if not library:
         return {'stats': {
@@ -522,39 +585,26 @@ async def profile_stats(user=Depends(get_current_user)):
         }}
 
     binary_path = _stats_binary_path()
-    if not binary_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={'error': 'stats_binary_unavailable'},
-        )
-    try:
-        result = subprocess.run(
-            _stats_command(binary_path),
-            input=json.dumps(library),
-            capture_output=True,
-            text=True,
-            timeout=RATINGS_STATS_TIMEOUT_SECONDS,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail={'error': 'stats_timeout'},
-        )
-    if result.returncode != 0:
-        details = (result.stderr.strip() or "")[:200]
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={'error': 'stats_failed', 'details': details or None},
-        )
-    try:
-        stats = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={'error': 'stats_invalid_output'},
-        )
-    return {'stats': stats}
+    if binary_path.exists():
+        try:
+            result = subprocess.run(
+                _stats_command(binary_path),
+                input=json.dumps(library),
+                capture_output=True,
+                text=True,
+                timeout=RATINGS_STATS_TIMEOUT_SECONDS,
+                check=False,
+            )
+            if result.returncode == 0:
+                try:
+                    return {'stats': json.loads(result.stdout)}
+                except json.JSONDecodeError:
+                    pass
+        except subprocess.TimeoutExpired:
+            pass
+        # Binary failed — fall through to Python implementation
+
+    return {'stats': _compute_stats_python(library)}
 
 
 GEMINI_GENERATE_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -585,6 +635,7 @@ async def profile_insights(user=Depends(get_current_user)):
 
     titles_by_type: dict[str, list[str]] = {}
     genres_set: set[str] = set()
+    genre_counts: dict[str, int] = {}
     rated_items: list[dict] = []
     status_counts: dict[str, int] = {}
 
@@ -593,6 +644,7 @@ async def profile_insights(user=Depends(get_current_user)):
         titles_by_type.setdefault(t, []).append(item.get("title", "Untitled"))
         for g in item.get("genres", []):
             genres_set.add(g)
+            genre_counts[g] = genre_counts.get(g, 0) + 1
         if item.get("rating", 0) > 0:
             rated_items.append(item)
         s = item.get("status", "")
@@ -601,31 +653,49 @@ async def profile_insights(user=Depends(get_current_user)):
 
     rated_items.sort(key=lambda x: x.get("rating", 0), reverse=True)
     top_rated = rated_items[:5]
+    bottom_rated = [i for i in rated_items if i.get("rating", 0) < 50][:3]
+    genre_ranking = sorted(genre_counts.items(), key=lambda x: -x[1])[:10]
+    avg_rating = sum(i.get("rating", 0) for i in rated_items) / len(rated_items) if rated_items else 0
 
-    summary_lines = [f"Total items: {len(library)}"]
+    summary_lines = [
+        f"Total items: {len(library)} (rated: {len(rated_items)}, unrated: {len(library) - len(rated_items)})",
+        f"Average rating (of rated): {avg_rating:.1f}/100",
+    ]
     for t, titles in titles_by_type.items():
-        summary_lines.append(f"  {t}s: {len(titles)} — {', '.join(titles[:8])}")
-    if genres_set:
-        summary_lines.append(f"Genres: {', '.join(sorted(genres_set))}")
+        summary_lines.append(f"  {t}s: {len(titles)} — {', '.join(titles[:10])}")
+    if genre_ranking:
+        summary_lines.append("Genres by frequency: " + ", ".join(f"{g}({c})" for g, c in genre_ranking))
     if top_rated:
         summary_lines.append("Top rated: " + ", ".join(
             f"{i['title']} ({i['rating']}/100)" for i in top_rated
+        ))
+    if bottom_rated:
+        summary_lines.append("Lowest rated: " + ", ".join(
+            f"{i['title']} ({i['rating']}/100)" for i in bottom_rated
         ))
     for s, c in status_counts.items():
         summary_lines.append(f"Status '{s}': {c}")
 
     prompt = (
-        "You are a media analyst. Based on this user's library data, write a short, "
-        "friendly 3-4 paragraph analysis of their media tastes and habits. "
-        "Mention patterns you notice (genre preferences, rating tendencies, "
-        "types of media they gravitate toward). Keep it conversational and specific "
-        "to their actual data. Do not use bullet points or headers.\n\n"
-        "Library summary:\n" + "\n".join(summary_lines)
+        "You are a media analyst. Analyze this user's library and respond with valid JSON only — no markdown, no code fences, no extra text:\n"
+        '{"mood": "ONE_WORD", "mood_description": "ONE_SENTENCE", "analysis": "..."}\n\n'
+        "Rules:\n"
+        "- mood: A single evocative word (adjective or noun) that best labels their taste. "
+        "Examples: Adventurous, Noir, Cinephile, Eclectic, Pulp, Epic, Cozy, Contemplative, Arthouse, Visceral.\n"
+        "- mood_description: One short, punchy sentence (max 12 words) that explains the mood word. "
+        "Reference a dominant genre or theme from their actual data. "
+        "Examples: 'Drawn to the darkness between human choices.', 'Always chasing the next grand adventure.'\n"
+        "- analysis: 3 tight paragraphs (2-4 sentences each). Be specific — name actual titles, genres, and numbers. "
+        "Cover: (1) dominant genres/themes and what they reveal about taste; "
+        "(2) rating habits — generous or harsh, standout highs and lows; "
+        "(3) media mix and completion habits (backlog vs finished). "
+        "Wrap genre names, themes, and specific titles in *asterisks*. Conversational tone, no bullet points or headers.\n\n"
+        "Library data:\n" + "\n".join(summary_lines)
     )
 
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"maxOutputTokens": 512, "temperature": 0.7},
+        "generationConfig": {"maxOutputTokens": 640, "temperature": 0.6},
     }
 
     last_error: Exception | None = None
@@ -658,18 +728,33 @@ async def profile_insights(user=Depends(get_current_user)):
             detail={'error': 'insights_generation_failed', 'details': str(last_error)[:200]},
         )
 
-    from .db import get_supabase_client
+    # Parse JSON response; strip markdown code fences if present
+    raw = text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    try:
+        parsed = json.loads(raw)
+        mood = (parsed.get("mood") or "").strip() or None
+        mood_description = (parsed.get("mood_description") or "").strip() or None
+        analysis = (parsed.get("analysis") or "").strip() or text
+    except (json.JSONDecodeError, TypeError):
+        mood = None
+        mood_description = None
+        analysis = text
+
     from datetime import datetime, timezone
+    payload_save = {
+        "ai_insights": json.dumps({"mood": mood, "mood_description": mood_description, "analysis": analysis}) if mood else analysis,
+        "ai_insights_updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    from .db import get_supabase_client
     try:
         db = get_supabase_client()
-        db.table('profiles').update({
-            'ai_insights': text,
-            'ai_insights_updated_at': datetime.now(timezone.utc).isoformat(),
-        }).eq('id', user['user_id']).execute()
+        db.table("profiles").update(payload_save).eq("id", user["user_id"]).execute()
     except Exception as save_err:
         print(f"[WARN] Failed to persist insights: {save_err}")
 
-    return {'insights': text}
+    return {"mood": mood, "mood_description": mood_description, "insights": analysis}
 
 
 @router.get('/profile/insights')
@@ -687,10 +772,26 @@ async def get_saved_insights(user=Depends(get_current_user)):
         row = None
 
     if not row or not row.get('ai_insights'):
-        return {'insights': None, 'updated_at': None}
+        return {'mood': None, 'insights': None, 'updated_at': None}
+
+    raw = row['ai_insights']
+    mood = None
+    mood_description = None
+    insights = raw
+    try:
+        if isinstance(raw, str) and raw.strip().startswith('{'):
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                mood = parsed.get('mood')
+                mood_description = parsed.get('mood_description')
+                insights = parsed.get('analysis') or raw
+    except (json.JSONDecodeError, TypeError):
+        pass
 
     return {
-        'insights': row['ai_insights'],
+        'mood': mood,
+        'mood_description': mood_description,
+        'insights': insights,
         'updated_at': row['ai_insights_updated_at'],
     }
 
